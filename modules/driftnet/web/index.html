@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>driftnet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #12161f;
+    --panel-hi: #161b26;
+    --border: #1e2430;
+    --text: #e4e7ec;
+    --muted: #6b7280;
+    --muted-2: #454c58;
+    --amber: #ffa630;
+    --amber-dim: #7a5a26;
+    --red: #ff4d4d;
+    --red-dim: #4a1f1f;
+    --blue: #5b9bd5;
+    --violet: #9b8afb;
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
+    --sans: 'Inter', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  body { display: flex; flex-direction: column; }
+
+  /* ---- Top bar ---- */
+  .topbar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    flex-shrink: 0;
+  }
+  .wordmark {
+    font-family: var(--mono); font-weight: 700; font-size: 15px;
+    letter-spacing: 0.02em; color: var(--text);
+  }
+  .wordmark span { color: var(--amber); }
+  .status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--muted-2);
+    box-shadow: none;
+    transition: background .3s, box-shadow .3s;
+  }
+  .status-dot.live { background: var(--amber); box-shadow: 0 0 8px var(--amber); animation: pulse 2s ease-in-out infinite; }
+  .status-dot.down { background: var(--red); box-shadow: 0 0 8px var(--red); }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+  .topbar-meta {
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+    display: flex; gap: 18px; margin-left: auto;
+  }
+  .topbar-meta b { color: var(--text); font-weight: 600; }
+
+  /* ---- Layout ---- */
+  .layout { flex: 1; display: flex; min-height: 0; }
+  .sidebar {
+    width: 240px; flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    background: var(--panel);
+    overflow-y: auto;
+    padding: 14px 0;
+  }
+  .sidebar-label {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+    color: var(--muted-2); text-transform: uppercase;
+    padding: 0 16px; margin-bottom: 8px;
+  }
+  .source-item {
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 9px 16px; cursor: pointer;
+    border-left: 2px solid transparent;
+    font-family: var(--mono);
+  }
+  .source-item:hover { background: var(--panel-hi); }
+  .source-item.active { border-left-color: var(--amber); background: var(--panel-hi); }
+  .source-item .dev { font-size: 12px; color: var(--muted); }
+  .source-item .app { font-size: 12.5px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sidebar-empty { padding: 16px; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+  .scope-panel {
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px 12px;
+    flex-shrink: 0;
+  }
+  .scope-header {
+    display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px;
+  }
+  .scope-title { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+  .scope-sub { font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
+  canvas#scope { display: block; width: 100%; height: 120px; border-radius: 4px; background: #0d1017; border: 1px solid var(--border); }
+  .scope-legend {
+    display: flex; gap: 16px; margin-top: 8px;
+    font-family: var(--mono); font-size: 10.5px; color: var(--muted);
+  }
+  .scope-legend .item { display: flex; align-items: center; gap: 5px; }
+  .swatch { width: 8px; height: 8px; border-radius: 2px; }
+
+  .log-panel { flex: 1; overflow-y: auto; padding: 0 20px; }
+  .log-label {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+    color: var(--muted-2); text-transform: uppercase;
+    padding: 14px 0 8px; position: sticky; top: 0; background: var(--bg);
+  }
+  table.events { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+  table.events th {
+    text-align: left; font-weight: 500; color: var(--muted);
+    padding: 6px 8px; border-bottom: 1px solid var(--border);
+    font-size: 10.5px; letter-spacing: 0.04em;
+  }
+  table.events td { padding: 6px 8px; border-bottom: 1px solid #161a24; vertical-align: top; }
+  table.events tr:hover { background: var(--panel-hi); }
+  .kind-tag {
+    display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10.5px;
+    border: 1px solid;
+  }
+  .kind-network { color: var(--blue); border-color: var(--blue); }
+  .kind-crypto  { color: var(--amber); border-color: var(--amber); }
+  .kind-fs      { color: var(--violet); border-color: var(--violet); }
+  .kind-custom  { color: var(--muted); border-color: var(--muted-2); }
+  .kind-intent   { color: #f97316; border-color: #f97316; }
+  .kind-sql      { color: #14b8a6; border-color: #14b8a6; }
+  .kind-webview  { color: #ec4899; border-color: #ec4899; }
+  .kind-biometric { color: #22c55e; border-color: #22c55e; }
+  .rule-badge {
+    display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10.5px;
+    background: var(--red-dim); color: var(--red); margin-left: 4px;
+    font-family: var(--mono);
+  }
+  .rule-badge.info {
+    background: rgba(91, 155, 213, 0.15); color: var(--blue);
+  }
+  .rule-badge.ambiguous {
+    background: rgba(155, 138, 251, 0.15); color: var(--violet);
+  }
+  .rule-badge.vuln {
+    background: rgba(249, 115, 22, 0.15); color: #f97316;
+  }
+  .ncd-val { font-variant-numeric: tabular-nums; }
+  .ncd-val.hot { color: var(--red); font-weight: 600; }
+  .detail-cell { color: var(--muted); max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ---- Flagged drawer ---- */
+  .drawer {
+    border-top: 1px solid var(--border);
+    background: var(--panel);
+    flex-shrink: 0;
+    max-height: 34vh;
+    display: flex; flex-direction: column;
+  }
+  .drawer-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 20px; cursor: pointer;
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.08em;
+    color: var(--red); text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  .drawer-header .count {
+    background: var(--red-dim); color: var(--red);
+    border-radius: 10px; padding: 1px 8px; font-size: 11px;
+  }
+  .drawer-body { overflow-y: auto; padding: 0 20px 12px; }
+  .flag-row {
+    padding: 9px 0; border-top: 1px solid #1a1f2a;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .flag-row-top {
+    display: flex; align-items: center; gap: 10px;
+    font-family: var(--mono); font-size: 12px;
+  }
+  .flag-row-top .ncd-val { color: var(--red); }
+  .flag-triage { font-size: 12.5px; color: var(--text); line-height: 1.45; padding-left: 2px; }
+  .flag-triage.pending { color: var(--muted); font-style: italic; }
+  .attr-toggle {
+    font-family: var(--mono); font-size: 10.5px; color: var(--amber);
+    background: none; border: 1px solid var(--amber-dim); border-radius: 3px;
+    padding: 1px 7px; cursor: pointer; margin-left: auto;
+  }
+  .attr-toggle:hover { background: var(--amber-dim); }
+  .attr-panel {
+    margin-top: 6px; padding: 8px 10px; background: #0d1017;
+    border: 1px solid var(--border); border-radius: 4px;
+    font-family: var(--mono); font-size: 11px;
+  }
+  .attr-row { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+  .attr-field { width: 130px; flex-shrink: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .attr-bar-track { flex: 1; height: 10px; background: #161b26; border-radius: 2px; overflow: hidden; }
+  .attr-bar-fill { height: 100%; background: var(--amber); }
+  .attr-bar-fill.negative { background: var(--muted-2); }
+  .attr-delta { width: 52px; flex-shrink: 0; text-align: right; color: var(--muted); }
+  .attr-loading { color: var(--muted); font-style: italic; }
+
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #262c39; border-radius: 5px; }
+  ::-webkit-scrollbar-thumb:hover { background: #313847; }
+
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%; gap: 8px; color: var(--muted); text-align: center; padding: 40px;
+  }
+  .empty-state .big { font-family: var(--mono); font-size: 13px; color: var(--text); }
+  .empty-state .small { font-size: 12px; max-width: 380px; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="status-dot down" id="statusDot"></div>
+    <div class="wordmark">drift<span>net</span></div>
+    <div class="topbar-meta">
+      <span><b id="metaSources">0</b> sources</span>
+      <span><b id="metaEvents">0</b> events</span>
+      <span><b id="metaFlagged">0</b> flagged</span>
+      <span id="metaConn" style="color: var(--muted-2)">connecting&hellip;</span>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="sidebar">
+      <div class="sidebar-label">Sources</div>
+      <div id="sourceList"></div>
+    </div>
+
+    <div class="main">
+      <div class="scope-panel">
+        <div class="scope-header">
+          <div class="scope-title" id="scopeTitle">select a source</div>
+          <div class="scope-sub" id="scopeSub"></div>
+        </div>
+        <canvas id="scope"></canvas>
+        <div class="scope-legend">
+          <div class="item"><div class="swatch" style="background:var(--amber)"></div>normal</div>
+          <div class="item"><div class="swatch" style="background:var(--red)"></div>flagged (NCD &ge; 0.5, or rule match)</div>
+          <div class="item"><div class="swatch" style="background:var(--muted-2); width:14px; height:1px; border-radius:0;"></div>threshold</div>
+        </div>
+      </div>
+
+      <div class="log-panel" id="logPanel">
+        <div class="empty-state">
+          <div class="big">no events yet</div>
+          <div class="small">Start driftnetd and run scripts/relay.py against a target app on the phone. Events will stream in here as the Frida agent hooks fire.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="drawer">
+    <div class="drawer-header" id="drawerToggle">
+      &#9650; flagged events <span class="count" id="drawerCount">0</span>
+    </div>
+    <div class="drawer-body" id="drawerBody"></div>
+  </div>
+
+<script>
+const API_BASE = window.DRIFTNET_API_BASE || '';
+// MUST match ingest.NoveltyThreshold in the Go backend (currently 0.5).
+// This is a display-only mirror, not a source of truth -- the backend's
+// /api/events/flagged endpoint is authoritative for what counts as
+// flagged. This constant only controls the seismograph's threshold line
+// and the "hot" red styling on the ncd column, so a drift here would be
+// a purely cosmetic bug (event shown red vs not) rather than a real
+// detection bug -- but it's exactly the kind of two-thresholds-drifting-
+// apart mistake already found and fixed once in the Go backend (see
+// README), so keep it in sync manually until both sides read from one
+// config source.
+const THRESHOLD = 0.5;
+const POLL_MS = 2000;
+
+let state = {
+  recent: [],
+  flagged: [],
+  sources: [],
+  activeSource: null,
+  connected: false,
+  expandedAttr: new Set(), // seqs currently showing their attribution panel
+};
+
+function sourceParts(key) {
+  const idx = key.indexOf(':');
+  if (idx === -1) return { device: key, app: '' };
+  return { device: key.substring(0, idx), app: key.substring(idx + 1) };
+}
+
+function kindClass(kind) {
+  return { network: 'kind-network', crypto: 'kind-crypto', fs: 'kind-fs', intent: 'kind-intent', sql: 'kind-sql', webview: 'kind-webview', biometric: 'kind-biometric' }[kind] || 'kind-custom';
+}
+
+function renderRuleBadges(ruleMatches) {
+  if (!ruleMatches || !ruleMatches.length) return '';
+  return ruleMatches.map(r => {
+    if (r.startsWith('app_updated:')) {
+      const [from, to] = r.slice('app_updated:'.length).split('->');
+      return `<span class="rule-badge info">updated ${from} &rarr; ${to}</span>`;
+    }
+    if (r.startsWith('compressor_disagreement:')) {
+      const parts = r.slice('compressor_disagreement:'.length);
+      return `<span class="rule-badge ambiguous" title="the two independent novelty measurements disagree">disagreement (${parts})</span>`;
+    }
+    if (r.startsWith('secret_leak:')) {
+      const pattern = r.slice('secret_leak:'.length);
+      return `<span class="rule-badge" title="a redacted match only -- the actual secret value never left the device">leaked secret: ${pattern}</span>`;
+    }
+    if (r === 'insecure_intent') {
+      return `<span class="rule-badge vuln" title="implicit intent leaking sensitive data or granting URI permissions globally">⚠ insecure intent</span>`;
+    }
+    if (r === 'insecure_sql_query') {
+      return `<span class="rule-badge vuln" title="unparameterized SQL query with concatenated values — potential SQL injection">⚠ sql injection risk</span>`;
+    }
+    if (r === 'insecure_webview') {
+      return `<span class="rule-badge vuln" title="insecure WebView configuration: JS interface, mixed content, or file access">⚠ insecure webview</span>`;
+    }
+    if (r === 'weak_biometric') {
+      return `<span class="rule-badge vuln" title="biometric auth without CryptoObject — result is a hookable boolean, trivially bypassable">⚠ weak biometric</span>`;
+    }
+    return `<span class="rule-badge">${r}</span>`;
+  }).join('');
+}
+
+function fmtTime(ts) {
+  const d = new Date(ts);
+  return d.toLocaleTimeString('en-US', { hour12: false }) + '.' + String(d.getMilliseconds()).padStart(3, '0');
+}
+
+function summarizeDetail(detail) {
+  try {
+    const o = typeof detail === 'string' ? JSON.parse(detail) : detail;
+    return Object.entries(o).map(([k, v]) => `${k}=${v}`).join(' · ');
+  } catch (e) {
+    return String(detail);
+  }
+}
+
+async function poll() {
+  try {
+    const [recentRes, flaggedRes, sourcesRes] = await Promise.all([
+      fetch(`${API_BASE}/api/events/recent`),
+      fetch(`${API_BASE}/api/events/flagged`),
+      fetch(`${API_BASE}/api/sources`),
+    ]);
+    if (!recentRes.ok || !flaggedRes.ok || !sourcesRes.ok) throw new Error('bad response');
+    state.recent = await recentRes.json() || [];
+    state.flagged = await flaggedRes.json() || [];
+    const sj = await sourcesRes.json();
+    state.sources = (sj.sources || []).sort();
+    setConnected(true);
+    if (!state.activeSource && state.sources.length) state.activeSource = state.sources[0];
+    render();
+  } catch (e) {
+    setConnected(false);
+  }
+}
+
+function setConnected(ok) {
+  if (state.connected === ok) return;
+  state.connected = ok;
+  const dot = document.getElementById('statusDot');
+  const conn = document.getElementById('metaConn');
+  if (ok) {
+    dot.className = 'status-dot live';
+    conn.textContent = 'connected to driftnetd';
+    conn.style.color = 'var(--muted)';
+  } else {
+    dot.className = 'status-dot down';
+    conn.textContent = 'cannot reach driftnetd — is it running?';
+    conn.style.color = 'var(--red)';
+  }
+}
+
+function render() {
+  document.getElementById('metaSources').textContent = state.sources.length;
+  document.getElementById('metaEvents').textContent = state.recent.length;
+  document.getElementById('metaFlagged').textContent = state.flagged.length;
+
+  renderSidebar();
+  renderScope();
+  renderLog();
+  renderDrawer();
+}
+
+function renderSidebar() {
+  const el = document.getElementById('sourceList');
+  if (!state.sources.length) {
+    el.innerHTML = '<div class="sidebar-empty">No sources reporting yet. A source appears once the relay forwards its first event.</div>';
+    return;
+  }
+  el.innerHTML = state.sources.map(key => {
+    const { device, app } = sourceParts(key);
+    const cls = key === state.activeSource ? 'source-item active' : 'source-item';
+    return `<div class="${cls}" data-key="${key}"><div class="dev">${device}</div><div class="app">${app}</div></div>`;
+  }).join('');
+  el.querySelectorAll('.source-item').forEach(node => {
+    node.addEventListener('click', () => {
+      state.activeSource = node.dataset.key;
+      render();
+    });
+  });
+}
+
+function currentSourceEvents() {
+  if (!state.activeSource) return [];
+  return state.recent.filter(ev => `${ev.device}:${ev.app}` === state.activeSource);
+}
+
+function renderScope() {
+  const events = currentSourceEvents();
+  const { device, app } = state.activeSource ? sourceParts(state.activeSource) : { device: '', app: '' };
+  document.getElementById('scopeTitle').textContent = state.activeSource ? `${device} · ${app}` : 'select a source';
+
+  const latest = events.length ? events.reduce((a, b) => (a.seq > b.seq ? a : b)) : null;
+  const versionSuffix = latest && latest.app_version && latest.app_version !== 'unknown'
+    ? ` · v${latest.app_version}`
+    : '';
+  document.getElementById('scopeSub').textContent = state.activeSource
+    ? `${events.length} events in buffer · NCD vs. rolling baseline${versionSuffix}`
+    : '';
+
+  const canvas = document.getElementById('scope');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const w = rect.width || canvas.parentElement.clientWidth;
+  const h = 120;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.height = h + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+
+  if (!events.length) return;
+
+  const ordered = events.slice().sort((a, b) => a.seq - b.seq);
+  const n = ordered.length;
+  const barGap = 2;
+  const barW = Math.max(2, Math.min(10, w / n - barGap));
+  const usableW = n * (barW + barGap);
+  const startX = Math.max(0, w - usableW);
+
+  // threshold line
+  const thresholdY = h - THRESHOLD * (h - 10) - 5;
+  ctx.strokeStyle = '#454c58';
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(0, thresholdY);
+  ctx.lineTo(w, thresholdY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ordered.forEach((ev, i) => {
+    const x = startX + i * (barW + barGap);
+    const score = Math.max(0, Math.min(1, ev.ncd_score || 0));
+    const barH = score * (h - 10);
+    const y = h - barH - 5;
+    ctx.fillStyle = score >= THRESHOLD ? '#ff4d4d' : '#ffa630';
+    ctx.globalAlpha = score >= THRESHOLD ? 1 : 0.85;
+    ctx.fillRect(x, y, barW, barH);
+  });
+  ctx.globalAlpha = 1;
+}
+
+function renderLog() {
+  const events = currentSourceEvents().slice().sort((a, b) => b.seq - a.seq).slice(0, 200);
+  const panel = document.getElementById('logPanel');
+  if (!events.length) {
+    panel.innerHTML = `<div class="empty-state">
+      <div class="big">${state.activeSource ? 'no events for this source yet' : 'no events yet'}</div>
+      <div class="small">Start driftnetd and run scripts/relay.py against a target app on the phone. Events will stream in here as the Frida agent hooks fire.</div>
+    </div>`;
+    return;
+  }
+  const rows = events.map(ev => `
+    <tr>
+      <td style="color:var(--muted)">${ev.seq}</td>
+      <td style="color:var(--muted)">${fmtTime(ev.timestamp)}</td>
+      <td><span class="kind-tag ${kindClass(ev.kind)}">${ev.kind}</span></td>
+      <td class="ncd-val ${ev.ncd_score >= THRESHOLD ? 'hot' : ''}">${(ev.ncd_score ?? 0).toFixed(3)}</td>
+      <td>${renderRuleBadges(ev.rule_matches)}</td>
+      <td class="detail-cell">${summarizeDetail(ev.detail)}</td>
+    </tr>
+  `).join('');
+  panel.innerHTML = `
+    <div class="log-label">Event log</div>
+    <table class="events">
+      <thead><tr><th>seq</th><th>time</th><th>kind</th><th>ncd</th><th>rules</th><th>detail</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function renderDrawer() {
+  document.getElementById('drawerCount').textContent = state.flagged.length;
+  const body = document.getElementById('drawerBody');
+  if (!state.flagged.length) {
+    body.innerHTML = '<div class="flag-row" style="color:var(--muted); font-family: var(--mono); font-size: 12px;">nothing flagged — all sources within baseline</div>';
+    return;
+  }
+  const rows = state.flagged.slice().sort((a, b) => b.seq - a.seq).map(ev => `
+    <div class="flag-row">
+      <div class="flag-row-top">
+        <span style="color:var(--muted)">#${ev.seq}</span>
+        <span>${ev.device}:${ev.app}</span>
+        <span class="kind-tag ${kindClass(ev.kind)}">${ev.kind}</span>
+        <span class="ncd-val">${(ev.ncd_score ?? 0).toFixed(3)}</span>
+        ${renderRuleBadges(ev.rule_matches)}
+        <span style="color:var(--muted)">${fmtTime(ev.timestamp)}</span>
+        <button class="attr-toggle" data-seq="${ev.seq}">why?</button>
+      </div>
+      <div class="flag-triage ${ev.triage ? '' : 'pending'}">${ev.triage || 'triage pending…'}</div>
+      ${state.expandedAttr.has(ev.seq) ? renderAttrPanel(ev.attribution) : ''}
+    </div>
+  `).join('');
+  body.innerHTML = rows;
+
+  body.querySelectorAll('.attr-toggle').forEach(btn => {
+    btn.addEventListener('click', () => onAttrToggle(Number(btn.dataset.seq)));
+  });
+}
+
+function renderAttrPanel(attrs) {
+  if (!attrs || !attrs.length) {
+    return `<div class="attr-panel attr-loading">no field-level attribution for this event (empty/non-object detail, or it's a source's very first-ever event with no baseline to compare against)</div>`;
+  }
+  const maxAbs = Math.max(...attrs.map(a => Math.abs(a.delta)), 0.001);
+  const bars = attrs.map(a => {
+    const pct = Math.min(100, (Math.abs(a.delta) / maxAbs) * 100);
+    const cls = a.delta < 0 ? 'attr-bar-fill negative' : 'attr-bar-fill';
+    return `
+      <div class="attr-row">
+        <div class="attr-field">${a.field}</div>
+        <div class="attr-bar-track"><div class="${cls}" style="width:${pct}%"></div></div>
+        <div class="attr-delta">${a.delta >= 0 ? '+' : ''}${a.delta.toFixed(3)}</div>
+      </div>`;
+  }).join('');
+  return `<div class="attr-panel">${bars}</div>`;
+}
+
+function onAttrToggle(seq) {
+  if (state.expandedAttr.has(seq)) {
+    state.expandedAttr.delete(seq);
+  } else {
+    state.expandedAttr.add(seq);
+  }
+  renderDrawer();
+}
+
+document.getElementById('drawerToggle').addEventListener('click', () => {
+  const drawer = document.querySelector('.drawer');
+  const body = document.getElementById('drawerBody');
+  const arrow = document.getElementById('drawerToggle');
+  const collapsed = body.style.display === 'none';
+  body.style.display = collapsed ? 'block' : 'none';
+  drawer.style.maxHeight = collapsed ? '34vh' : 'auto';
+});
+
+window.addEventListener('resize', renderScope);
+
+poll();
+setInterval(poll, POLL_MS);
+</script>
+</body>
+</html>

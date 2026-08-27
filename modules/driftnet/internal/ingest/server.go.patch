@@ -1,0 +1,41 @@
+--- internal/ingest/server.go
++++ internal/ingest/server.go
+@@ -19,6 +19,7 @@
+ 	"github.com/yash/driftnet/internal/fingerprint"
+ 	"github.com/yash/driftnet/internal/novelty"
+ 	"github.com/yash/driftnet/internal/rules"
++	"github.com/yash/driftnet/internal/static"
+ 	"github.com/yash/driftnet/internal/store"
+ )
+ 
+@@ -75,6 +76,7 @@
+ 	scorers          *novelty.Manager
+ 	secondaryScorers *novelty.SecondaryManager
+ 	rules            *rules.Evaluator
++	staticAnalyzer   *static.Analyzer
+ 	upgrader         websocket.Upgrader
+ 
+ 	// OnEvent is called synchronously for every successfully ingested
+@@ -110,12 +112,13 @@
+ // internally-constructed Evaluator would start fresh on every restart,
+ // flooding "first seen" flags for hosts a source had already established
+ // long before. See rules.Evaluator.ObserveOnly's doc for that fix.
+-func NewServer(wal *store.WAL, scorers *novelty.Manager, secondaryScorers *novelty.SecondaryManager, rulesEvaluator *rules.Evaluator) *Server {
++func NewServer(wal *store.WAL, scorers *novelty.Manager, secondaryScorers *novelty.SecondaryManager, rulesEvaluator *rules.Evaluator, staticAnalyzer *static.Analyzer) *Server {
+ 	return &Server{
+ 		wal:              wal,
+ 		scorers:          scorers,
+ 		secondaryScorers: secondaryScorers,
+ 		rules:            rulesEvaluator,
++		staticAnalyzer:   staticAnalyzer,
+ 		upgrader: websocket.Upgrader{
+ 			ReadBufferSize:  4096,
+ 			WriteBufferSize: 4096,
+@@ -200,7 +203,7 @@
+ 			secondaryScore = s.secondaryScorers.PeekScore(scoringKey, scoringPayload)
+ 		}
+ 
+-		ruleMatches := s.rules.Evaluate(sourceKey, raw.Kind, raw.Detail)
++		ruleMatches := s.rules.Evaluate(sourceKey, raw.Kind, raw.Detail, s.staticAnalyzer)
+ 		// Version tracking is independent of kind (a version applies to
+ 		// the whole app, not one event kind), so it uses the plain

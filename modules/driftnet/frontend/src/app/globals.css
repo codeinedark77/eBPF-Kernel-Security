@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  --color-bg-base: #0b0e14;
+  --color-panel: #12161f;
+  --color-panel-hi: #161b26;
+  --color-panel-glass: rgba(18, 22, 31, 0.7);
+  --color-border: #1e2430;
+  
+  --color-text-main: #e4e7ec;
+  --color-text-muted: #6b7280;
+  --color-text-muted2: #454c58;
+  
+  --color-brand-amber: #ffa630;
+  --color-brand-amber-dim: #7a5a26;
+  --color-brand-red: #ff4d4d;
+  --color-brand-red-dim: #4a1f1f;
+  --color-brand-blue: #5b9bd5;
+  --color-brand-violet: #9b8afb;
+  --color-brand-orange: #f97316;
+  --color-brand-teal: #14b8a6;
+  --color-brand-pink: #ec4899;
+  --color-brand-green: #22c55e;
+}
+
+/* Base styles for the dark theme */
+html, body {
+  margin: 0;
+  height: 100%;
+  background-color: var(--color-bg-base);
+  color: var(--color-text-main);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Glassmorphism utilities */
+.glass {
+  background: var(--color-panel-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Custom Scrollbar for sleek UI */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #262c39; border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: #313847; }
+
+/* Micro-animations */
+@keyframes pulse-amber { 
+  0%, 100% { opacity: 1; box-shadow: 0 0 12px var(--color-brand-amber); } 
+  50% { opacity: 0.5; box-shadow: 0 0 4px var(--color-brand-amber); } 
+}
+.animate-pulse-amber {
+  animation: pulse-amber 2s ease-in-out infinite;
+}
+
+/* Kind Badges Map */
+.kind-tag {
+  @apply inline-block px-[6px] py-[1px] rounded-[3px] text-[10.5px] border font-mono;
+}
+.kind-network { @apply text-brand-blue border-brand-blue; }
+.kind-crypto  { @apply text-brand-amber border-brand-amber; }
+.kind-fs      { @apply text-brand-violet border-brand-violet; }
+.kind-custom  { @apply text-text-muted border-text-muted2; }
+.kind-intent   { @apply text-brand-orange border-brand-orange; }
+.kind-sql      { @apply text-brand-teal border-brand-teal; }
+.kind-webview  { @apply text-brand-pink border-brand-pink; }
+.kind-biometric { @apply text-brand-green border-brand-green; }
+
+/* Rule Badges */
+.rule-badge {
+  @apply inline-block px-[6px] py-[1px] rounded-[3px] text-[10.5px] ml-1 font-mono;
+}
+.rule-badge-default { @apply bg-brand-red-dim text-brand-red; }
+.rule-badge-info { @apply bg-brand-blue/15 text-brand-blue; }
+.rule-badge-ambiguous { @apply bg-brand-violet/15 text-brand-violet; }
+.rule-badge-vuln { @apply bg-brand-orange/15 text-brand-orange; }

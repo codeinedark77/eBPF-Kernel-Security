@@ -1,0 +1,89 @@
+name: CI/CD Build Pipeline (Project OMNI)
+
+on:
+  push:
+    branches: [ "main", "dev" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-android-suite:
+    name: Build Android Native C++ Suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Android NDK
+        id: setup-ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r25c
+          add-to-path: true
+
+      - name: Configure CMake
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. \
+            -DCMAKE_TOOLCHAIN_FILE=${{ steps.setup-ndk.outputs.ndk-path }}/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-29 \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build C++ Modules (Net/IPC, Compute, AppSec)
+        run: |
+          cd build
+          make -j$(nproc)
+
+      - name: Upload Native Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: android-native-suite
+          path: build/modules/
+
+  build-ebpf-probes:
+    name: Build eBPF Kernel Probes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Install Clang & LLVM Toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm libbpf-dev linux-headers-generic
+
+      - name: Compile eBPF Object
+        run: |
+          cd modules/ebpf_kernel
+          clang -O2 -target bpf -g -D__TARGET_ARCH_arm64 -I/usr/include/aarch64-linux-gnu -c bpf_probe.c -o bpf_probe.o
+
+      - name: Upload eBPF Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ebpf-probes
+          path: modules/ebpf_kernel/bpf_probe.o
+
+  build-go-backend:
+    name: Build DriftNet Go Backend & eBPF Loader
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Go Environment
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+
+      - name: Build eBPF Go Loader
+        run: |
+          cd modules/ebpf_kernel
+          go build -o bpf_loader bpf_loader.go
+
+      - name: Upload Go Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: go-backends
+          path: modules/ebpf_kernel/bpf_loader

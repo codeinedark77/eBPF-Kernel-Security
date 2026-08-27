@@ -1,0 +1,27 @@
+# Build outputs
+build/
+build-android/
+build-android-cpu/
+node_modules/
+.next/
+out/
+
+# Binaries and large files
+*.so
+*.o
+*.a
+*.tar.gz
+*.gguf
+driftnetd
+driftnetd.exe
+cmake-3.29.3-linux-x86_64/
+ubuntu-base.tar.gz
+
+# OS generated
+.DS_Store
+Thumbs.db
+llama-server
+llama-cli
+*.node
+libvips*
+mul_mm.comp.cpp
