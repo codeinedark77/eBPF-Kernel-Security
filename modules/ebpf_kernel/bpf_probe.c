@@ -80,15 +80,15 @@ int bpf_prog_connect(struct pt_regs *ctx)
     bpf_probe_read(&addr, sizeof(addr), uservaddr);
     
     if (addr.sin_family == 2) { // AF_INET
-        unsigned char *ip = (unsigned char *)&addr.sin_addr;
+        unsigned int ip = addr.sin_addr;
         unsigned short port = ((addr.sin_port & 0xFF) << 8) | ((addr.sin_port >> 8) & 0xFF);
         
         // Encode IP and Port in fname payload
         data.fname[0] = 'I'; data.fname[1] = 'P'; data.fname[2] = ':';
-        data.fname[3] = ip[0];
-        data.fname[4] = ip[1];
-        data.fname[5] = ip[2];
-        data.fname[6] = ip[3];
+        data.fname[3] = ip & 0xFF;
+        data.fname[4] = (ip >> 8) & 0xFF;
+        data.fname[5] = (ip >> 16) & 0xFF;
+        data.fname[6] = (ip >> 24) & 0xFF;
         data.fname[7] = port >> 8;
         data.fname[8] = port & 0xFF;
         data.fname[9] = 0;
