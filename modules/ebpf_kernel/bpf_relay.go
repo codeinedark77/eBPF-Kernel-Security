@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/url"
 	"os"
@@ -58,10 +59,21 @@ func main() {
 			comm := strings.TrimSpace(matches[3])
 			fname := strings.TrimSpace(matches[4])
 			
+			kind := "sys_openat"
+			if strings.HasPrefix(fname, "IP:") && len(fname) >= 9 {
+				kind = "sys_connect"
+				ip1 := fname[3]
+				ip2 := fname[4]
+				ip3 := fname[5]
+				ip4 := fname[6]
+				port := (uint16(fname[7]) << 8) | uint16(fname[8])
+				fname = fmt.Sprintf("%d.%d.%d.%d:%d", ip1, ip2, ip3, ip4, port)
+			}
+			
 			ev := Event{
 				Device:     "Android-Ring0",
 				App:        comm,
-				Kind:       "sys_openat",
+				Kind:       kind,
 				Detail:     EventDetail{PID: pid, UID: uid, FName: fname},
 				AppVersion: "1.0",
 			}

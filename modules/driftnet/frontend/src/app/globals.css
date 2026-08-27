@@ -18,6 +18,8 @@
   --color-brand-amber-dim: #7a5a26;
   --color-brand-red: #ff4d4d;
   --color-brand-red-dim: #4a1f1f;
+  --color-brand-cyber: #00ff41;
+  --color-brand-cyber-dim: rgba(0, 255, 65, 0.1);
   --color-brand-blue: #5b9bd5;
   --color-brand-violet: #9b8afb;
   --color-brand-orange: #f97316;
@@ -85,3 +87,15 @@ body {
 .rule-badge-info { @apply bg-brand-blue/15 text-brand-blue; }
 .rule-badge-ambiguous { @apply bg-brand-violet/15 text-brand-violet; }
 .rule-badge-vuln { @apply bg-brand-orange/15 text-brand-orange; }
+
+.cyber-grid {
+  background-image: 
+    linear-gradient(rgba(0, 255, 65, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 65, 0.05) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.cyber-glow {
+  box-shadow: 0 0 10px rgba(0, 255, 65, 0.4), inset 0 0 10px rgba(0, 255, 65, 0.1);
+  border: 1px solid var(--color-brand-cyber);
+}

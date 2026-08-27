@@ -115,7 +115,7 @@ export default function Dashboard() {
       <header className="flex items-center gap-3 px-5 py-3 border-b border-[var(--color-border)] bg-[var(--color-panel)] shrink-0 z-10">
         <div className={`w-2 h-2 rounded-full transition-all duration-300 ${connected ? 'bg-[var(--color-brand-amber)] animate-pulse-amber' : 'bg-[var(--color-brand-red)] shadow-[0_0_8px_var(--color-brand-red)]'}`} />
         <div className="font-mono font-bold text-[15px] tracking-[0.02em] text-[var(--color-text-main)]">
-          drift<span className="text-[var(--color-brand-amber)]">net</span>
+          drift<span className="text-[var(--color-brand-cyber)] cyber-glow px-1 rounded ml-1">net</span>
         </div>
         <div className="ml-auto flex gap-[18px] font-mono text-[12px] text-[var(--color-text-muted)]">
           <span><b className="text-[var(--color-text-main)] font-semibold">{sources.length}</b> sources</span>
@@ -161,7 +161,7 @@ export default function Dashboard() {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 flex flex-col min-w-0 bg-[var(--color-bg-base)]">
+        <main className="flex-1 flex flex-col min-w-0 bg-[var(--color-bg-base)] cyber-grid">
           <ScopePanel activeSource={activeSource} events={currentSourceEvents()} />
           <LogPanel events={currentSourceEvents()} activeSource={activeSource} />
         </main>
