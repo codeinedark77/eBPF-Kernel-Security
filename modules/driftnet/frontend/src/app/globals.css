@@ -71,8 +71,10 @@ body {
   @apply inline-block px-[6px] py-[1px] rounded-[3px] text-[10.5px] border font-mono;
 }
 .kind-network { @apply text-brand-blue border-brand-blue; }
+.kind-sys_connect { @apply text-brand-blue border-brand-blue; }
 .kind-crypto  { @apply text-brand-amber border-brand-amber; }
 .kind-fs      { @apply text-brand-violet border-brand-violet; }
+.kind-sys_openat { @apply text-brand-violet border-brand-violet; }
 .kind-custom  { @apply text-text-muted border-text-muted2; }
 .kind-intent   { @apply text-brand-orange border-brand-orange; }
 .kind-sql      { @apply text-brand-teal border-brand-teal; }
