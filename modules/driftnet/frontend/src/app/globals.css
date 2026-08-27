@@ -72,6 +72,7 @@ body {
 }
 .kind-network { @apply text-brand-blue border-brand-blue; }
 .kind-sys_connect { @apply text-brand-blue border-brand-blue; }
+.kind-sys_execve { @apply text-brand-red border-brand-red; box-shadow: 0 0 8px rgba(255, 77, 77, 0.4); }
 .kind-crypto  { @apply text-brand-amber border-brand-amber; }
 .kind-fs      { @apply text-brand-violet border-brand-violet; }
 .kind-sys_openat { @apply text-brand-violet border-brand-violet; }

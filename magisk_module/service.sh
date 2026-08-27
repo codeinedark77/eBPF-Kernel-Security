@@ -8,7 +8,12 @@ sleep 10 # Wait for Android to finish settling
 
 echo "0" > /data/local/ubuntu/root/llm_state
 
-# 1. Mount the Ubuntu chroot and start DriftNet Backend + UI
+# 1. Mount the Ubuntu chroot dependencies and start DriftNet Backend + UI
+mount -t proc proc /data/local/ubuntu/proc
+mount -t sysfs sysfs /data/local/ubuntu/sys
+mount --bind /dev /data/local/ubuntu/dev
+mount --bind /dev/pts /data/local/ubuntu/dev/pts
+
 # DriftNet connects to port 11434 and serves on port 8787
 chroot /data/local/ubuntu /bin/su - root -c "cd /root/driftnet && nohup ./bin/driftnetd -addr 0.0.0.0:8787 -data ./data -ollama http://127.0.0.1:11434 -model tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf -web ./frontend/out > /root/driftnet_nohup.out 2>&1 &"
 

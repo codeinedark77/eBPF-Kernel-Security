@@ -1,65 +1,103 @@
-# Project OMNI: Autonomous Mobile Cyber-Warfare Node 👑
+# 🛡️ DriftNet (Project OMNI)
 
-Project OMNI is a massive, multi-architecture cyber-warfare and Endpoint Detection & Response (EDR) suite designed to operate entirely offline on a bare-metal Android edge device (OnePlus 9R). 
+<div align="center">
+  <img src="https://img.shields.io/badge/Status-Production-success?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Kernel-eBPF-black?style=for-the-badge&logo=linux" />
+  <img src="https://img.shields.io/badge/Backend-Go-00ADD8?style=for-the-badge&logo=go" />
+  <img src="https://img.shields.io/badge/Frontend-Next.js-black?style=for-the-badge&logo=next.js" />
+</div>
 
-It combines low-level Linux Kernel engineering (eBPF), heterogeneous GPU compute, native Android systems programming, and local Large Language Models (LLMs) to create an autonomous, un-bypassable threat detection platform.
+<br />
 
----
+**DriftNet** is a Ring-0 cybersecurity daemon designed for Android edge devices. It utilizes eBPF (Extended Berkeley Packet Filter) kernel probes to passively intercept and stream execution, network, and file-system syscalls with near-zero overhead. 
 
-## 🚀 Key Capabilities (The "God Mode" Upgrades)
-
-We transformed this project from a heavy proof-of-concept into a **stealthy, battery-efficient, production-grade root daemon**. 
-
-### 1. Zero-Overhead Kernel Telemetry (eBPF Ring 0)
-- **What it does:** A custom C program compiled via LLVM/Clang to eBPF is injected directly into the Android Linux kernel. It intercepts `sys_openat` and `sys_execve` syscalls directly at the OS level.
-- **The Upgrade:** We implemented native C-level UID filtering within the kernel probe to completely ignore Android framework processes (UIDs < 10000). By filtering out system noise at Ring 0, the eBPF probe now exclusively tracks untrusted third-party apps with near-zero overhead.
-
-### 2. Thermal & Battery Orchestration (Lazy AI)
-- **What it does:** A C++ LLaMA AI engine cross-compiled via the Android NDK runs natively on the Snapdragon 870 hardware to triage zero-day anomalies.
-- **The Upgrade:** Running a 600MB LLM continuously on a mobile GPU causes severe thermal throttling. We engineered an event-driven **Lazy AI Orchestrator**. The AI is kept completely dormant, consuming 0% battery. When DriftNet's mathematical backend detects an anomaly, the orchestrator dynamically wakes up the GPU, loads the LLM weights, triages the threat, and instantly kills the AI process to preserve battery.
-
-### 3. Native Magisk Module Daemon (Auto-Boot)
-- **What it does:** Project OMNI is packaged as a standard Magisk Module.
-- **The Upgrade:** You no longer need ADB, a laptop, or a terminal to start the EDR. When the phone boots, Magisk's `service.sh` silently mounts the Ubuntu Edge Node, attaches the eBPF kernel hooks, starts the DriftNet Next.js dashboard, and deploys the AI Watchdog entirely in the background.
-
-### 4. Full Ubuntu Linux GUI Integration
-- **What it does:** Alongside the EDR, Project OMNI hosts a headless XFCE4 Ubuntu Desktop Environment running inside a `chroot` on the `/data` partition, without the massive performance overhead of virtualization.
-- **The Upgrade:** The Magisk daemon automatically spins up a VNC server (`127.0.0.1:5901`). You can access a full Linux Desktop environment directly on your Android screen using any local VNC Viewer app.
+Unlike traditional Ring-3 EDRs or user-space hooks (Frida/Xposed) which are easily detected and bypassed by modern malware, DriftNet operates entirely in kernel-space, making it invisible to userspace applications.
 
 ---
 
-## 🏛️ Module Architecture Breakdown
+## 🔬 Core Architecture
 
-### 📡 Module 1: Native Network & Binder IPC Subsystem (`modules/net_ipc/`)
-- **Native Raw Socket Sniffer:** High-efficiency `aarch64` raw socket daemon performing IP packet parsing without third-party dependencies.
-- **BoringSSL Plaintext Interceptor:** Dynamic Frida instrumentation targeting `libssl.so` to extract plaintext payloads before TLS encryption.
+DriftNet is split into three primary layers:
+1. **The Kernel Probes (C/eBPF):** Intercepts ARM64 syscalls (`sys_openat`, `sys_connect`, `sys_execve`).
+2. **The Telemetry Relay (Go):** A high-throughput WebSocket server that reads the eBPF BPF map ring buffers.
+3. **The Tactical Dashboard (Next.js):** A real-time UI mapping the telemetry against behavioral baseline signatures.
 
-### 🛡️ Module 2: Native AppSec & Anti-Analysis Suite (`modules/appsec/`)
-- **Native Security Core:** C++ security testbed implementing multi-stage anti-tampering (`PTRACE_TRACEME`, `TracerPid`).
-- **Dynamic Bypass Engine:** Frida harness intercepting low-level `libc` calls to dynamically spoof clean environment states.
+```mermaid
+graph TD
+    subgraph "Ring-0 (Kernel Space)"
+        K[Linux Kernel]
+        P1[kprobe/__arm64_sys_execve]
+        P2[kprobe/__arm64_sys_openat]
+        P3[kprobe/__arm64_sys_connect]
+        RB[(BPF Ring Buffer)]
+        
+        K --> P1
+        K --> P2
+        K --> P3
+        P1 --> RB
+        P2 --> RB
+        P3 --> RB
+    end
 
-### ⚡ Module 3: Heterogeneous GPU Compute Engine (`modules/compute/`)
-- **Adreno GPU Compute Shader:** GLSL 4.5 compute shader executing parallel math on Qualcomm Adreno 650 GPUs.
-- **Vulkan Acceleration Benchmark:** Native C++ compute harness evaluating zero-copy memory allocation (`dmabuf` / `ion`).
-
-### 🧠 Module 4: DriftNet Local Intelligence (`modules/driftnet/`)
-- **DriftNet Backend:** Go-based backend modified to route triage requests to the local Lazy AI orchestrator.
-- **DriftNet Dashboard:** Next.js React frontend to visualize real-time process execution and compression-math scoring from the eBPF kernel pipeline.
-
-### 🔌 Module 5: eBPF Kernel Probes (`modules/ebpf_kernel/`)
-- **Ring-0 Hooks:** Raw C probes compiled for the `bpf` target with UID filtering.
-- **Go WebSocket Relay:** High-performance Go binary that pipes kernel telemetry directly into DriftNet's WebSocket ingestion engine.
+    subgraph "Ring-3 (User Space)"
+        GL[Go BPF Loader (CGO)]
+        GR[Go WebSocket Relay]
+        UI[Next.js Dashboard]
+        
+        RB -->|Read Maps| GL
+        GL --> GR
+        GR -->|ws://events| UI
+    end
+    
+    style K fill:#2c3e50,stroke:#fff,stroke-width:2px,color:#fff
+    style RB fill:#e74c3c,stroke:#fff,stroke-width:2px,color:#fff
+    style GR fill:#00ADD8,stroke:#fff,stroke-width:2px,color:#fff
+    style UI fill:#000,stroke:#fff,stroke-width:2px,color:#fff
+```
 
 ---
 
-## 🛠️ Installation & Usage
+## ⚡ Deployment & Installation
 
-This system is completely autonomous and deployed natively via Magisk.
+### Requirements
+- A rooted Android device (Magisk).
+- Kernel version `>= 5.10` with `CONFIG_BPF_SYSCALL=y`.
+- Ubuntu Chroot environment configured in `/data/local/ubuntu`.
 
-1. Install the `project_omni` Magisk module zip via the Magisk Manager app on your rooted device.
-2. Reboot the phone.
-3. **Access the EDR Dashboard:** Open your mobile browser (or a laptop on the same WiFi network) and navigate to `http://127.0.0.1:8787`.
-4. **Access the Ubuntu Linux GUI:** Open any VNC Viewer app on your phone and connect to `127.0.0.1:5901` (Password: `ubuntu`).
+### 1. Flash the Magisk Module
+The `magisk_module/` directory contains the boot scripts necessary to bypass SELinux restrictions and mount `tracefs` before the Android Zygote process initializes.
+```bash
+cd magisk_module/
+zip -r OMNI_Magisk_Release.zip .
+adb push OMNI_Magisk_Release.zip /sdcard/Download/
+```
+*Install via Magisk Manager and reboot.*
+
+### 2. Start the Telemetry Relay
+The Go relay compiles down to a statically linked ARM64 binary.
+```bash
+cd modules/ebpf_kernel
+GOOS=linux GOARCH=arm64 go build -o driftnetd bpf_loader.go bpf_relay.go
+adb push driftnetd /data/local/tmp/
+adb shell "su -c 'chmod +x /data/local/tmp/driftnetd && /data/local/tmp/driftnetd'"
+```
+
+### 3. Launch the Dashboard
+The Next.js dashboard runs locally and connects to the Go WebSocket server.
+```bash
+cd modules/driftnet/frontend
+npm run build
+npm run start
+```
 
 ---
-*Architected and engineered from the kernel up.*
+
+## 🛡️ Telemetry Capabilities
+
+- **Process Spawning (`sys_execve`):** Detects hidden shell executions and payload staging.
+- **Network Exfiltration (`sys_connect`):** Maps outbound socket connections to malicious IPs before DNS resolution.
+- **File System Tampering (`sys_openat`):** Monitors access to sensitive credentials, `AndroidManifest.xml`, and shared preferences.
+
+<div align="center">
+  <i>Built for performance. Built for the edge.</i>
+</div>

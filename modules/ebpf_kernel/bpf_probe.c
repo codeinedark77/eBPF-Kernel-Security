@@ -34,10 +34,7 @@ int bpf_prog1(struct pt_regs *ctx)
     // On arm64, PT_REGS_PARM1 is the original pt_regs pointer for syscall wrappers.
     struct user_pt_regs *real_regs = (struct user_pt_regs *)PT_REGS_PARM1(ctx);
     
-    char *fname_ptr;
-    // Read the second argument (x1) from the original syscall regs, which contains the filename
-    bpf_probe_read(&fname_ptr, sizeof(fname_ptr), &real_regs->regs[1]);
-    
+
     data.pid = bpf_get_current_pid_tgid() >> 32;
     data.uid = bpf_get_current_uid_gid() & 0xFFFFFFFF;
     
@@ -48,7 +45,9 @@ int bpf_prog1(struct pt_regs *ctx)
 
     bpf_get_current_comm(&data.comm, sizeof(data.comm));
     
-    bpf_probe_read_str(&data.fname, sizeof(data.fname), fname_ptr);
+    char *fname_ptr;
+    bpf_probe_read_user(&fname_ptr, sizeof(fname_ptr), &real_regs->regs[1]);
+    bpf_probe_read_user_str(&data.fname, sizeof(data.fname), fname_ptr);
     
     bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, &data, sizeof(data));
     
@@ -74,10 +73,10 @@ int bpf_prog_connect(struct pt_regs *ctx)
     bpf_get_current_comm(&data.comm, sizeof(data.comm));
     
     struct sockaddr_in_v4 *uservaddr;
-    bpf_probe_read(&uservaddr, sizeof(uservaddr), &real_regs->regs[1]);
+    bpf_probe_read_user(&uservaddr, sizeof(uservaddr), &real_regs->regs[1]);
     
     struct sockaddr_in_v4 addr;
-    bpf_probe_read(&addr, sizeof(addr), uservaddr);
+    bpf_probe_read_user(&addr, sizeof(addr), uservaddr);
     
     if (addr.sin_family == 2) { // AF_INET
         unsigned int ip = addr.sin_addr;
@@ -95,6 +94,30 @@ int bpf_prog_connect(struct pt_regs *ctx)
         
         bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, &data, sizeof(data));
     }
+    return 0;
+}
+
+SEC("kprobe/__arm64_sys_execve")
+int bpf_prog_execve(struct pt_regs *ctx)
+{
+    struct data_t data = {};
+    struct user_pt_regs *real_regs = (struct user_pt_regs *)PT_REGS_PARM1(ctx);
+    
+    data.pid = bpf_get_current_pid_tgid() >> 32;
+    data.uid = bpf_get_current_uid_gid() & 0xFFFFFFFF;
+    if (data.uid < 10000) return 0;
+    
+    bpf_get_current_comm(&data.comm, sizeof(data.comm));
+    
+    // In sys_execve, regs[0] is the pointer to the filename string
+    char *fname_ptr;
+    bpf_probe_read_user(&fname_ptr, sizeof(fname_ptr), &real_regs->regs[0]);
+    
+    // Prefix with EXEC: so the Go relay knows it's an execution event
+    data.fname[0] = 'E'; data.fname[1] = 'X'; data.fname[2] = 'E'; data.fname[3] = 'C'; data.fname[4] = ':';
+    bpf_probe_read_user_str(&data.fname[5], sizeof(data.fname) - 5, fname_ptr);
+    
+    bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, &data, sizeof(data));
     return 0;
 }
 

@@ -110,82 +110,113 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col h-screen overflow-hidden bg-[var(--color-bg-base)] cyber-grid">
       {/* Topbar */}
-      <header className="flex items-center gap-3 px-5 py-3 border-b border-[var(--color-border)] bg-[var(--color-panel)] shrink-0 z-10">
-        <div className={`w-2 h-2 rounded-full transition-all duration-300 ${connected ? 'bg-[var(--color-brand-amber)] animate-pulse-amber' : 'bg-[var(--color-brand-red)] shadow-[0_0_8px_var(--color-brand-red)]'}`} />
-        <div className="font-mono font-bold text-[15px] tracking-[0.02em] text-[var(--color-text-main)]">
-          drift<span className="text-[var(--color-brand-cyber)] cyber-glow px-1 rounded ml-1">net</span>
+      <header className="flex items-center gap-3 px-6 py-4 border-b border-[var(--color-border)] glass shrink-0 z-20">
+        <div className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${connected ? 'bg-[var(--color-brand-amber)] animate-pulse-amber' : 'bg-[var(--color-brand-red)] shadow-[0_0_8px_var(--color-brand-red)]'}`} />
+        <div className="font-mono font-bold text-[18px] tracking-[0.04em] text-[var(--color-text-main)]">
+          drift<span className="text-[var(--color-brand-cyber)] cyber-glow px-1.5 py-0.5 rounded ml-1 bg-black/40">net</span>
         </div>
-        <div className="ml-auto flex gap-[18px] font-mono text-[12px] text-[var(--color-text-muted)]">
-          <span><b className="text-[var(--color-text-main)] font-semibold">{sources.length}</b> sources</span>
-          <span><b className="text-[var(--color-text-main)] font-semibold">{recent.length}</b> events</span>
-          <span><b className="text-[var(--color-text-main)] font-semibold">{flagged.length}</b> flagged</span>
+        <div className="ml-auto flex gap-6 font-mono text-[13px] text-[var(--color-text-muted)]">
           {connected ? (
-            <span className="text-[var(--color-text-muted)]">connected to driftnetd</span>
+            <span className="text-[var(--color-brand-cyber)] flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-brand-cyber)] animate-pulse"></span>
+              LIVE TELEMETRY
+            </span>
           ) : (
-            <span className="text-[var(--color-brand-red)]">cannot reach driftnetd — is it running?</span>
+            <span className="text-[var(--color-brand-red)]">DISCONNECTED FROM DRIFTNETD</span>
           )}
         </div>
       </header>
 
       {/* Main Layout */}
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0 p-4 gap-4">
         {/* Sidebar */}
-        <aside className="w-[240px] shrink-0 border-r border-[var(--color-border)] bg-[var(--color-panel)] overflow-y-auto py-3.5 z-0">
-          <div className="font-mono text-[10px] tracking-[0.12em] text-[var(--color-text-muted2)] uppercase px-4 mb-2">Sources</div>
-          {!sources.length ? (
-            <div className="px-4 text-[12.5px] text-[var(--color-text-muted)] leading-relaxed">
-              No sources reporting yet. A source appears once the relay forwards its first event.
-            </div>
-          ) : (
-            sources.map((key) => {
-              const idx = key.indexOf(":");
-              const device = idx === -1 ? key : key.substring(0, idx);
-              const app = idx === -1 ? "" : key.substring(idx + 1);
-              const isActive = key === activeSource;
-              
-              return (
-                <div 
-                  key={key}
-                  onClick={() => setActiveSource(key)}
-                  className={`flex flex-col gap-0.5 py-[9px] px-4 cursor-pointer border-l-2 font-mono transition-colors
-                    ${isActive ? 'border-[var(--color-brand-amber)] bg-[var(--color-panel-hi)]' : 'border-transparent hover:bg-[var(--color-panel-hi)]'}`}
-                >
-                  <div className="text-[12px] text-[var(--color-text-muted)]">{device}</div>
-                  <div className="text-[12.5px] text-[var(--color-text-main)] truncate">{app}</div>
-                </div>
-              );
-            })
-          )}
+        <aside className="w-[260px] shrink-0 border border-[var(--color-border)] rounded-lg glass overflow-hidden flex flex-col z-10 shadow-2xl">
+          <div className="font-mono text-[11px] tracking-[0.15em] text-[var(--color-text-muted2)] uppercase px-5 py-4 border-b border-[var(--color-border)] bg-black/20">Active Targets</div>
+          <div className="overflow-y-auto flex-1 p-2">
+            {!sources.length ? (
+              <div className="px-3 py-4 text-[13px] text-[var(--color-text-muted)] leading-relaxed italic">
+                Awaiting kernel telemetry...
+              </div>
+            ) : (
+              sources.map((key) => {
+                const idx = key.indexOf(":");
+                const device = idx === -1 ? key : key.substring(0, idx);
+                const app = idx === -1 ? "" : key.substring(idx + 1);
+                const isActive = key === activeSource;
+                
+                return (
+                  <div 
+                    key={key}
+                    onClick={() => setActiveSource(key)}
+                    className={`flex flex-col gap-1 py-3 px-3 mb-1 rounded-md cursor-pointer font-mono transition-all duration-200
+                      ${isActive ? 'bg-[var(--color-brand-amber-dim)] border border-[var(--color-brand-amber)]/30' : 'border border-transparent hover:bg-white/5'}`}
+                  >
+                    <div className="text-[11px] text-[var(--color-text-muted)]">{device}</div>
+                    <div className={`text-[13px] truncate ${isActive ? 'text-white' : 'text-[var(--color-text-main)]'}`}>{app}</div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 flex flex-col min-w-0 bg-[var(--color-bg-base)] cyber-grid">
-          <ScopePanel activeSource={activeSource} events={currentSourceEvents()} />
-          <LogPanel events={currentSourceEvents()} activeSource={activeSource} />
+        <main className="flex-1 flex flex-col min-w-0 gap-4">
+          <KpiGrid total={recent.length} flagged={flagged.length} sources={sources.length} />
+          
+          <div className="flex-1 flex flex-col min-w-0 glass border border-[var(--color-border)] rounded-lg shadow-2xl overflow-hidden relative">
+            <ScopePanel activeSource={activeSource} events={currentSourceEvents()} />
+            <LogPanel events={currentSourceEvents()} activeSource={activeSource} />
+          </div>
         </main>
       </div>
 
       {/* Drawer */}
-      <div className={`shrink-0 border-t border-[var(--color-border)] bg-[var(--color-panel)] flex flex-col transition-all duration-300 ${drawerOpen ? 'max-h-[34vh]' : 'max-h-[40px]'}`}>
+      <div className={`shrink-0 glass border-t border-[var(--color-border)] flex flex-col transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] shadow-[0_-10px_40px_rgba(0,0,0,0.5)] ${drawerOpen ? 'h-[40vh]' : 'h-[44px]'}`}>
         <div 
-          className="flex items-center gap-2 px-5 py-2.5 cursor-pointer font-mono text-[11.5px] tracking-[0.08em] text-[var(--color-brand-red)] uppercase shrink-0 hover:bg-[var(--color-panel-hi)] transition-colors"
+          className="flex items-center gap-3 px-6 py-3 cursor-pointer font-mono text-[12px] tracking-[0.1em] text-[var(--color-brand-red)] uppercase shrink-0 hover:bg-white/5 transition-colors"
           onClick={() => setDrawerOpen(!drawerOpen)}
         >
-          <span className={`transition-transform duration-200 ${drawerOpen ? 'rotate-180' : ''}`}>▲</span> 
-          flagged events 
-          <span className="bg-[var(--color-brand-red-dim)] text-[var(--color-brand-red)] rounded-[10px] px-2 py-[1px] text-[11px]">{flagged.length}</span>
+          <span className={`transition-transform duration-300 ${drawerOpen ? 'rotate-180' : ''}`}>▲</span> 
+          Threat Intel: Flagged Events
+          <span className="bg-[var(--color-brand-red)] text-black font-bold rounded px-2 py-0.5 text-[11px] ml-1 shadow-[0_0_10px_var(--color-brand-red)]">{flagged.length}</span>
         </div>
-        <div className="overflow-y-auto px-5 pb-3">
+        <div className="overflow-y-auto px-6 pb-4">
           {!flagged.length ? (
-            <div className="py-[9px] text-[var(--color-text-muted)] font-mono text-[12px]">nothing flagged — all sources within baseline</div>
+            <div className="py-4 text-[var(--color-text-muted)] font-mono text-[13px] italic">Zero critical anomalies detected across infrastructure.</div>
           ) : (
             [...flagged].sort((a, b) => b.seq - a.seq).map((ev) => (
               <FlaggedRow key={ev.seq} ev={ev} expanded={expandedAttr.has(ev.seq)} onToggle={() => toggleAttr(ev.seq)} />
             ))
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------
+// KpiGrid Component
+// ----------------------------------------------------------------------
+function KpiGrid({ total, flagged, sources }: { total: number, flagged: number, sources: number }) {
+  return (
+    <div className="grid grid-cols-3 gap-4 shrink-0">
+      <div className="glass border border-[var(--color-border)] rounded-lg p-5 flex flex-col justify-between relative overflow-hidden group">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--color-brand-cyber)]/5 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-[var(--color-brand-cyber)]/10 transition-colors"></div>
+        <div className="font-mono text-[11px] tracking-[0.15em] text-[var(--color-text-muted2)] uppercase mb-2">Total Syscalls</div>
+        <div className="font-mono text-3xl text-white font-light">{total.toLocaleString()}</div>
+      </div>
+      <div className="glass border border-brand-red/30 rounded-lg p-5 flex flex-col justify-between relative overflow-hidden group">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--color-brand-red)]/10 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-[var(--color-brand-red)]/20 transition-colors"></div>
+        <div className="font-mono text-[11px] tracking-[0.15em] text-brand-red uppercase mb-2">Active Anomalies</div>
+        <div className="font-mono text-3xl text-brand-red font-bold drop-shadow-[0_0_8px_rgba(255,77,77,0.8)]">{flagged.toLocaleString()}</div>
+      </div>
+      <div className="glass border border-[var(--color-border)] rounded-lg p-5 flex flex-col justify-between relative overflow-hidden group">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--color-brand-blue)]/5 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-[var(--color-brand-blue)]/10 transition-colors"></div>
+        <div className="font-mono text-[11px] tracking-[0.15em] text-[var(--color-text-muted2)] uppercase mb-2">Monitored Targets</div>
+        <div className="font-mono text-3xl text-white font-light">{sources}</div>
       </div>
     </div>
   );
@@ -204,7 +235,7 @@ function ScopePanel({ activeSource, events }: { activeSource: string | null, eve
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
     const w = rect.width || canvas.parentElement!.clientWidth;
-    const h = 120;
+    const h = 160;
     
     canvas.width = w * dpr;
     canvas.height = h * dpr;
@@ -213,61 +244,103 @@ function ScopePanel({ activeSource, events }: { activeSource: string | null, eve
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, w, h);
+    let animationFrame: number;
+    let scanPos = 0;
 
-    if (!events.length) return;
+    const render = () => {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
 
-    const ordered = [...events].sort((a, b) => a.seq - b.seq);
-    const n = ordered.length;
-    const barGap = 2;
-    const barW = Math.max(2, Math.min(10, w / n - barGap));
-    const usableW = n * (barW + barGap);
-    const startX = Math.max(0, w - usableW);
+      // Draw background grid
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < w; i += 40) {
+        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke();
+      }
+      for (let i = 0; i < h; i += 40) {
+        ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(w, i); ctx.stroke();
+      }
 
-    // threshold line
-    const thresholdY = h - THRESHOLD * (h - 10) - 5;
-    ctx.strokeStyle = '#454c58';
-    ctx.setLineDash([3, 3]);
-    ctx.beginPath();
-    ctx.moveTo(0, thresholdY);
-    ctx.lineTo(w, thresholdY);
-    ctx.stroke();
-    ctx.setLineDash([]);
+      if (events.length > 0) {
+        const ordered = [...events].sort((a, b) => a.seq - b.seq);
+        const n = ordered.length;
+        const barGap = 3;
+        const barW = Math.max(2, Math.min(12, w / n - barGap));
+        const usableW = n * (barW + barGap);
+        const startX = Math.max(0, w - usableW);
 
-    ordered.forEach((ev, i) => {
-      const x = startX + i * (barW + barGap);
-      const score = Math.max(0, Math.min(1, ev.ncd_score || 0));
-      const barH = score * (h - 10);
-      const y = h - barH - 5;
-      ctx.fillStyle = score >= THRESHOLD ? '#ff4d4d' : '#ffa630';
-      ctx.globalAlpha = score >= THRESHOLD ? 1 : 0.85;
-      ctx.fillRect(x, y, barW, barH);
-    });
-    ctx.globalAlpha = 1;
+        // Threshold line
+        const thresholdY = h - THRESHOLD * (h - 20) - 10;
+        ctx.strokeStyle = 'rgba(255, 77, 77, 0.5)';
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath(); ctx.moveTo(0, thresholdY); ctx.lineTo(w, thresholdY); ctx.stroke();
+        ctx.setLineDash([]);
+        
+        ctx.fillStyle = 'rgba(255, 77, 77, 0.8)';
+        ctx.font = '10px monospace';
+        ctx.fillText('CRIT_THRESH', 10, thresholdY - 5);
+
+        // Draw Bars
+        ordered.forEach((ev, i) => {
+          const x = startX + i * (barW + barGap);
+          const score = Math.max(0, Math.min(1, ev.ncd_score || 0));
+          const barH = score * (h - 20);
+          const y = h - barH - 10;
+          
+          const isFlagged = score >= THRESHOLD;
+          
+          // Create gradient for bars
+          const grad = ctx.createLinearGradient(0, y, 0, h);
+          if (isFlagged) {
+            grad.addColorStop(0, '#ff4d4d');
+            grad.addColorStop(1, 'rgba(255, 77, 77, 0.1)');
+          } else {
+            grad.addColorStop(0, '#ffa630');
+            grad.addColorStop(1, 'rgba(255, 166, 48, 0.1)');
+          }
+          
+          ctx.fillStyle = grad;
+          ctx.fillRect(x, y, barW, barH);
+        });
+      }
+
+      // Animated Radar Scan Line
+      scanPos = (scanPos + 2) % w;
+      
+      const scanGrad = ctx.createLinearGradient(scanPos - 100, 0, scanPos, 0);
+      scanGrad.addColorStop(0, 'rgba(0, 255, 65, 0)');
+      scanGrad.addColorStop(1, 'rgba(0, 255, 65, 0.15)');
+      
+      ctx.fillStyle = scanGrad;
+      ctx.fillRect(scanPos - 100, 0, 100, h);
+      
+      ctx.fillStyle = 'rgba(0, 255, 65, 0.8)';
+      ctx.fillRect(scanPos, 0, 2, h);
+
+      animationFrame = requestAnimationFrame(render);
+    };
+
+    render();
+    
+    return () => cancelAnimationFrame(animationFrame);
   }, [events]);
 
   const idx = activeSource ? activeSource.indexOf(':') : -1;
   const device = idx === -1 ? activeSource : activeSource?.substring(0, idx);
   const app = idx === -1 ? "" : activeSource?.substring(idx + 1);
-  const latest = events.length ? events.reduce((a, b) => (a.seq > b.seq ? a : b)) : null;
-  const versionSuffix = latest && latest.app_version && latest.app_version !== 'unknown'
-    ? ` · v${latest.app_version}`
-    : '';
 
   return (
-    <div className="border-b border-[var(--color-border)] px-5 pt-4 pb-3 shrink-0">
-      <div className="flex items-baseline gap-2.5 mb-2.5">
-        <div className="font-mono text-[13px] font-semibold">{activeSource ? `${device} · ${app}` : 'select a source'}</div>
-        <div className="text-[11.5px] text-[var(--color-text-muted)] font-mono">
-          {activeSource ? `${events.length} events in buffer · NCD vs. rolling baseline${versionSuffix}` : ''}
+    <div className="border-b border-[var(--color-border)] bg-black/40 shrink-0">
+      <div className="px-6 py-4 flex items-baseline justify-between">
+        <div className="flex items-baseline gap-3">
+          <div className="font-mono text-[14px] font-bold text-white tracking-wide">{activeSource ? `${device} / ${app}` : 'AWAITING TARGET SELECTION'}</div>
+          <div className="text-[12px] text-[var(--color-text-muted)] font-mono">
+            {activeSource ? `[${events.length} EVENTS IN RING BUFFER]` : ''}
+          </div>
         </div>
       </div>
-      <canvas ref={canvasRef} className="block w-full h-[120px] rounded bg-[#0d1017] border border-[var(--color-border)] shadow-inner" />
-      <div className="flex gap-4 mt-2 font-mono text-[10.5px] text-[var(--color-text-muted)]">
-        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-sm bg-[var(--color-brand-amber)]" />normal</div>
-        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-sm bg-[var(--color-brand-red)]" />flagged (NCD &ge; 0.5, or rule match)</div>
-        <div className="flex items-center gap-1.5"><div className="w-[14px] h-[1px] bg-[var(--color-text-muted2)]" />threshold</div>
+      <div className="px-6 pb-4">
+        <canvas ref={canvasRef} className="block w-full h-[160px] rounded-lg bg-[#080a0f] border border-[#1e2430] shadow-[inset_0_0_30px_rgba(0,0,0,0.8)]" />
       </div>
     </div>
   );
@@ -281,48 +354,45 @@ function LogPanel({ events, activeSource }: { events: any[], activeSource: strin
 
   if (!displayEvents.length) {
     return (
-      <div className="flex-1 overflow-y-auto px-5">
-        <div className="flex flex-col items-center justify-center h-full gap-2 text-center p-10 text-[var(--color-text-muted)]">
-          <div className="font-mono text-[13px] text-[var(--color-text-main)]">
-            {activeSource ? 'no events for this source yet' : 'no events yet'}
-          </div>
-          <div className="text-[12px] max-w-[380px] leading-relaxed">
-            Start driftnetd and run scripts/relay.py against a target app on the phone. Events will stream in here as the Frida agent hooks fire.
-          </div>
+      <div className="flex-1 flex flex-col items-center justify-center text-center p-10 text-[var(--color-text-muted)]">
+        <div className="font-mono text-[14px] text-[var(--color-text-main)] mb-2">
+          {activeSource ? 'Telemetry buffer empty for this target.' : 'Standby for telemetry...'}
+        </div>
+        <div className="text-[13px] max-w-[400px] leading-relaxed">
+          The eBPF probes are active. Once execution, network, or file-system syscalls are intercepted in Ring-0, they will stream here in real-time.
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-5 pb-10">
-      <div className="font-mono text-[10px] tracking-[0.12em] text-[var(--color-text-muted2)] uppercase py-3.5 pb-2 sticky top-0 bg-[var(--color-bg-base)] z-10 backdrop-blur-md">Event log</div>
-      <table className="w-full border-collapse font-mono text-[12px]">
-        <thead>
+    <div className="flex-1 overflow-y-auto px-6 pb-6">
+      <table className="w-full border-collapse font-mono text-[12.5px]">
+        <thead className="sticky top-0 bg-[var(--color-panel-glass)] backdrop-blur-md z-10">
           <tr>
-            <th className="text-left font-medium text-[var(--color-text-muted)] px-2 py-1.5 border-b border-[var(--color-border)] text-[10.5px] tracking-[0.04em]">seq</th>
-            <th className="text-left font-medium text-[var(--color-text-muted)] px-2 py-1.5 border-b border-[var(--color-border)] text-[10.5px] tracking-[0.04em]">time</th>
-            <th className="text-left font-medium text-[var(--color-text-muted)] px-2 py-1.5 border-b border-[var(--color-border)] text-[10.5px] tracking-[0.04em]">kind</th>
-            <th className="text-left font-medium text-[var(--color-text-muted)] px-2 py-1.5 border-b border-[var(--color-border)] text-[10.5px] tracking-[0.04em]">ncd</th>
-            <th className="text-left font-medium text-[var(--color-text-muted)] px-2 py-1.5 border-b border-[var(--color-border)] text-[10.5px] tracking-[0.04em]">rules</th>
-            <th className="text-left font-medium text-[var(--color-text-muted)] px-2 py-1.5 border-b border-[var(--color-border)] text-[10.5px] tracking-[0.04em]">detail</th>
+            <th className="text-left font-medium text-[var(--color-text-muted2)] uppercase tracking-wider px-3 py-3 border-b border-[var(--color-border)]">SEQ</th>
+            <th className="text-left font-medium text-[var(--color-text-muted2)] uppercase tracking-wider px-3 py-3 border-b border-[var(--color-border)]">TIME</th>
+            <th className="text-left font-medium text-[var(--color-text-muted2)] uppercase tracking-wider px-3 py-3 border-b border-[var(--color-border)]">SYSCALL</th>
+            <th className="text-left font-medium text-[var(--color-text-muted2)] uppercase tracking-wider px-3 py-3 border-b border-[var(--color-border)]">NCD</th>
+            <th className="text-left font-medium text-[var(--color-text-muted2)] uppercase tracking-wider px-3 py-3 border-b border-[var(--color-border)]">RULES</th>
+            <th className="text-left font-medium text-[var(--color-text-muted2)] uppercase tracking-wider px-3 py-3 border-b border-[var(--color-border)]">PAYLOAD</th>
           </tr>
         </thead>
         <tbody>
           {displayEvents.map((ev) => (
-            <tr key={ev.seq} className="hover:bg-[var(--color-panel-hi)] transition-colors group">
-              <td className="px-2 py-1.5 border-b border-[#161a24] align-top text-[var(--color-text-muted)]">{ev.seq}</td>
-              <td className="px-2 py-1.5 border-b border-[#161a24] align-top text-[var(--color-text-muted)]">{fmtTime(ev.timestamp)}</td>
-              <td className="px-2 py-1.5 border-b border-[#161a24] align-top">
+            <tr key={ev.seq} className="hover:bg-white/5 transition-colors border-b border-white/5 group">
+              <td className="px-3 py-2.5 text-[var(--color-text-muted)]">{ev.seq}</td>
+              <td className="px-3 py-2.5 text-[var(--color-text-muted)]">{fmtTime(ev.timestamp)}</td>
+              <td className="px-3 py-2.5">
                 <span className={`kind-tag kind-${ev.kind}`}>{ev.kind}</span>
               </td>
-              <td className={`px-2 py-1.5 border-b border-[#161a24] align-top font-tabular-nums ${ev.ncd_score >= THRESHOLD ? 'text-[var(--color-brand-red)] font-semibold' : ''}`}>
+              <td className={`px-3 py-2.5 font-tabular-nums ${ev.ncd_score >= THRESHOLD ? 'text-brand-red font-bold text-[14px] drop-shadow-[0_0_5px_rgba(255,77,77,0.5)]' : 'text-white'}`}>
                 {(ev.ncd_score ?? 0).toFixed(3)}
               </td>
-              <td className="px-2 py-1.5 border-b border-[#161a24] align-top">
+              <td className="px-3 py-2.5">
                 <RuleBadges matches={ev.rule_matches} />
               </td>
-              <td className="px-2 py-1.5 border-b border-[#161a24] align-top text-[var(--color-text-muted)] max-w-[420px] truncate group-hover:text-[var(--color-text-main)] transition-colors">
+              <td className="px-3 py-2.5 text-[var(--color-text-muted)] max-w-[400px] truncate group-hover:text-white transition-colors">
                 {summarizeDetail(ev.detail)}
               </td>
             </tr>
@@ -338,23 +408,23 @@ function LogPanel({ events, activeSource }: { events: any[], activeSource: strin
 // ----------------------------------------------------------------------
 function FlaggedRow({ ev, expanded, onToggle }: { ev: any, expanded: boolean, onToggle: () => void }) {
   return (
-    <div className="py-[9px] border-t border-[#1a1f2a] flex flex-col gap-1">
-      <div className="flex items-center gap-2.5 font-mono text-[12px]">
+    <div className="py-3 border-b border-white/5 flex flex-col gap-2">
+      <div className="flex items-center gap-3 font-mono text-[13px]">
         <span className="text-[var(--color-text-muted)]">#{ev.seq}</span>
-        <span>{ev.device}:{ev.app}</span>
+        <span className="text-white">{ev.device}:{ev.app}</span>
         <span className={`kind-tag kind-${ev.kind}`}>{ev.kind}</span>
-        <span className="font-tabular-nums text-[var(--color-brand-red)]">{(ev.ncd_score ?? 0).toFixed(3)}</span>
+        <span className="font-tabular-nums text-brand-red font-bold">{(ev.ncd_score ?? 0).toFixed(3)}</span>
         <RuleBadges matches={ev.rule_matches} />
         <span className="text-[var(--color-text-muted)]">{fmtTime(ev.timestamp)}</span>
         <button 
           onClick={onToggle}
-          className="ml-auto font-mono text-[10.5px] text-[var(--color-brand-amber)] bg-transparent border border-[var(--color-brand-amber-dim)] rounded-[3px] px-1.5 py-[1px] cursor-pointer hover:bg-[var(--color-brand-amber-dim)] transition-colors"
+          className="ml-auto font-mono text-[11px] text-brand-amber bg-transparent border border-brand-amber/50 rounded px-2 py-0.5 cursor-pointer hover:bg-brand-amber hover:text-black transition-colors"
         >
-          why?
+          ANALYZE DELTA
         </button>
       </div>
-      <div className={`text-[12.5px] leading-[1.45] pl-[2px] ${ev.triage ? 'text-[var(--color-text-main)]' : 'text-[var(--color-text-muted)] italic'}`}>
-        {ev.triage || 'triage pending…'}
+      <div className={`text-[13px] leading-relaxed pl-1 ${ev.triage ? 'text-[var(--color-text-main)]' : 'text-[var(--color-text-muted)] italic'}`}>
+        {ev.triage || 'AI Triage Pending...'}
       </div>
       {expanded && <AttrPanel attrs={ev.attribution} />}
     </div>
@@ -364,8 +434,8 @@ function FlaggedRow({ ev, expanded, onToggle }: { ev: any, expanded: boolean, on
 function AttrPanel({ attrs }: { attrs: any[] }) {
   if (!attrs || !attrs.length) {
     return (
-      <div className="mt-1.5 p-2 px-2.5 bg-[#0d1017] border border-[var(--color-border)] rounded text-[var(--color-text-muted)] italic font-mono text-[11px]">
-        no field-level attribution for this event (empty/non-object detail, or it's a source's very first-ever event with no baseline to compare against)
+      <div className="mt-2 p-3 bg-black/40 border border-white/10 rounded text-[var(--color-text-muted)] italic font-mono text-[12px]">
+        No field-level attribution for this anomaly (baseline creation).
       </div>
     );
   }
@@ -373,19 +443,19 @@ function AttrPanel({ attrs }: { attrs: any[] }) {
   const maxAbs = Math.max(...attrs.map(a => Math.abs(a.delta)), 0.001);
 
   return (
-    <div className="mt-1.5 p-2 px-2.5 bg-[#0d1017] border border-[var(--color-border)] rounded font-mono text-[11px] shadow-inner">
+    <div className="mt-2 p-3 bg-black/60 border border-white/10 rounded font-mono text-[12px] shadow-inner">
       {attrs.map((a, i) => {
         const pct = Math.min(100, (Math.abs(a.delta) / maxAbs) * 100);
         return (
-          <div key={i} className="flex items-center gap-2 py-0.5">
-            <div className="w-[130px] shrink-0 text-[var(--color-text-muted)] truncate">{a.field}</div>
-            <div className="flex-1 h-2.5 bg-[#161b26] rounded-sm overflow-hidden">
+          <div key={i} className="flex items-center gap-3 py-1">
+            <div className="w-[140px] shrink-0 text-white truncate">{a.field}</div>
+            <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
               <div 
-                className={`h-full ${a.delta < 0 ? 'bg-[var(--color-text-muted2)]' : 'bg-[var(--color-brand-amber)]'}`} 
+                className={`h-full ${a.delta < 0 ? 'bg-brand-blue' : 'bg-brand-amber shadow-[0_0_8px_var(--color-brand-amber)]'}`} 
                 style={{ width: `${pct}%` }} 
               />
             </div>
-            <div className="w-[52px] shrink-0 text-right text-[var(--color-text-muted)]">
+            <div className="w-[60px] shrink-0 text-right text-white font-tabular-nums">
               {a.delta >= 0 ? '+' : ''}{a.delta.toFixed(3)}
             </div>
           </div>
@@ -419,30 +489,31 @@ function RuleBadges({ matches }: { matches: string[] }) {
       {matches.map((r, i) => {
         if (r.startsWith('app_updated:')) {
           const [from, to] = r.slice('app_updated:'.length).split('->');
-          return <span key={i} className="rule-badge rule-badge-info">updated {from} &rarr; {to}</span>;
+          return <span key={i} className="rule-badge rule-badge-info">UPDATED {from} &rarr; {to}</span>;
         }
         if (r.startsWith('compressor_disagreement:')) {
           const parts = r.slice('compressor_disagreement:'.length);
-          return <span key={i} className="rule-badge rule-badge-ambiguous" title="the two independent novelty measurements disagree">disagreement ({parts})</span>;
+          return <span key={i} className="rule-badge rule-badge-ambiguous">DISAGREEMENT ({parts})</span>;
         }
         if (r.startsWith('secret_leak:')) {
           const pattern = r.slice('secret_leak:'.length);
-          return <span key={i} className="rule-badge rule-badge-default" title="a redacted match only -- the actual secret value never left the device">leaked secret: {pattern}</span>;
+          return <span key={i} className="rule-badge rule-badge-default">LEAK: {pattern}</span>;
         }
         if (r === 'insecure_intent') {
-          return <span key={i} className="rule-badge rule-badge-vuln" title="implicit intent leaking sensitive data or granting URI permissions globally">⚠ insecure intent</span>;
+          return <span key={i} className="rule-badge rule-badge-vuln">⚠ INSECURE INTENT</span>;
         }
         if (r === 'insecure_sql_query') {
-          return <span key={i} className="rule-badge rule-badge-vuln" title="unparameterized SQL query with concatenated values — potential SQL injection">⚠ sql injection risk</span>;
+          return <span key={i} className="rule-badge rule-badge-vuln">⚠ SQL INJECTION</span>;
         }
         if (r === 'insecure_webview') {
-          return <span key={i} className="rule-badge rule-badge-vuln" title="insecure WebView configuration: JS interface, mixed content, or file access">⚠ insecure webview</span>;
+          return <span key={i} className="rule-badge rule-badge-vuln">⚠ INSECURE WEBVIEW</span>;
         }
         if (r === 'weak_biometric') {
-          return <span key={i} className="rule-badge rule-badge-vuln" title="biometric auth without CryptoObject — result is a hookable boolean, trivially bypassable">⚠ weak biometric</span>;
+          return <span key={i} className="rule-badge rule-badge-vuln">⚠ WEAK BIOMETRIC</span>;
         }
-        return <span key={i} className="rule-badge rule-badge-default">{r}</span>;
+        return <span key={i} className="rule-badge rule-badge-default">{r.toUpperCase()}</span>;
       })}
     </>
   );
 }
+

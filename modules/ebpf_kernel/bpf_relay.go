@@ -68,6 +68,9 @@ func main() {
 				ip4 := fname[6]
 				port := (uint16(fname[7]) << 8) | uint16(fname[8])
 				fname = fmt.Sprintf("%d.%d.%d.%d:%d", ip1, ip2, ip3, ip4, port)
+			} else if strings.HasPrefix(fname, "EXEC:") {
+				kind = "sys_execve"
+				fname = strings.TrimPrefix(fname, "EXEC:")
 			}
 			
 			ev := Event{
