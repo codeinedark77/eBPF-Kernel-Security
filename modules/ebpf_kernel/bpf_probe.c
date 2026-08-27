@@ -6,7 +6,7 @@
 
 #define MAX_PATH_LEN 256
 
-struct pt_regs {
+struct user_pt_regs {
 	__u64 regs[31];
 	__u64 sp;
 	__u64 pc;
@@ -32,7 +32,7 @@ int bpf_prog1(struct pt_regs *ctx)
     struct data_t data = {};
     
     // On arm64, PT_REGS_PARM1 is the original pt_regs pointer for syscall wrappers.
-    struct pt_regs *real_regs = (struct pt_regs *)PT_REGS_PARM1(ctx);
+    struct user_pt_regs *real_regs = (struct user_pt_regs *)PT_REGS_PARM1(ctx);
     
     char *fname_ptr;
     // Read the second argument (x1) from the original syscall regs, which contains the filename
@@ -40,6 +40,12 @@ int bpf_prog1(struct pt_regs *ctx)
     
     data.pid = bpf_get_current_pid_tgid() >> 32;
     data.uid = bpf_get_current_uid_gid() & 0xFFFFFFFF;
+    
+    // Drop Android system framework noise (UIDs under 10000)
+    if (data.uid < 10000) {
+        return 0;
+    }
+
     bpf_get_current_comm(&data.comm, sizeof(data.comm));
     
     bpf_probe_read_str(&data.fname, sizeof(data.fname), fname_ptr);

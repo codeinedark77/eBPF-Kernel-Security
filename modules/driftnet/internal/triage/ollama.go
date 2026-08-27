@@ -1,9 +1,3 @@
-// Package triage sends flagged (high-NCD-novelty) events to a local
-// Ollama instance for a plain-language explanation. This is deliberately
-// the LAST stage of the pipeline, not the first: the NCD scorer already
-// did the actual detection work cheaply and without an LLM in the loop.
-// The model's job here is narrow — summarize why a specific event looks
-// unusual — not to re-derive novelty itself.
 package triage
 
 import (
@@ -12,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
@@ -23,9 +19,6 @@ type Client struct {
 	http    *http.Client
 }
 
-// NewClient defaults to a local Ollama instance. baseURL example:
-// "http://127.0.0.1:11434" or, if driftnetd runs on a different tailnet
-// node than Ollama, its Tailscale address e.g. "http://laptop.tailnet-name.ts.net:11434".
 func NewClient(baseURL, model string) *Client {
 	if model == "" {
 		model = "llama3.1:8b-instruct-q4_K_M"
@@ -65,8 +58,31 @@ Raw detail (JSON): %s
 
 In 2-3 sentences: explain plausible reasons this event differs from baseline. If this event appears highly malicious or is a critical zero-day threat (e.g., unexpected code execution, massive exfiltration, stealing credentials), you MUST end your response with the exact word: "VERDICT: BLOCK". Otherwise, end with "VERDICT: ALLOW". Be direct, no hedging filler.`
 
-// Explain asks the local model for a short triage note on a flagged event.
 func (c *Client) Explain(ctx context.Context, device, app, kind string, detail json.RawMessage, ncdScore float64, ruleMatches []string) (string, error) {
+	// [LAZY AI ORCHESTRATION]
+	// Signal the Android host watchdog to start the LLM
+	log.Println("[Lazy AI] Waking up LLM Engine natively on GPU via state file...")
+	os.WriteFile("/root/llm_state", []byte("1"), 0644)
+	
+	defer func() {
+		log.Println("[Lazy AI] Triage complete. Shutting down LLM Engine to save battery.")
+		os.WriteFile("/root/llm_state", []byte("0"), 0644)
+	}()
+
+	// Wait for LLM to come online
+	ready := false
+	for i := 0; i < 30; i++ {
+		time.Sleep(1 * time.Second)
+		resp, err := c.http.Get(c.baseURL)
+		if err == nil && resp.StatusCode == http.StatusOK {
+			ready = true
+			break
+		}
+	}
+	if !ready {
+		return "", fmt.Errorf("timeout waiting for Lazy AI engine to wake up")
+	}
+
 	ruleStr := "none"
 	if len(ruleMatches) > 0 {
 		ruleStr = strings.Join(ruleMatches, ", ")
@@ -92,7 +108,7 @@ func (c *Client) Explain(ctx context.Context, device, app, kind string, detail j
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("llm request failed (is it running at %s?): %w", c.baseURL, err)
+		return "", fmt.Errorf("llm request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
