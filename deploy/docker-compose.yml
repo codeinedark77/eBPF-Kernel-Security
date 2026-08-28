@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  driftnet-dashboard:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: driftnet-dashboard
+    restart: unless-stopped
+    ports:
+      - "80:3000"
+    environment:
+      - NODE_ENV=production
+    security_opt:
+      - no-new-privileges:true

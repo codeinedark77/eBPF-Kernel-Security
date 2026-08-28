@@ -57,15 +57,29 @@ graph TD
 
 ---
 
-## ⚡ Deployment & Installation
+## ⚡ Deployment & Infrastructure
 
-### Requirements
+### Cloud C2 Deployment (Docker & Terraform)
+DriftNet's Next.js dashboard is fully containerized and can be deployed as a Command & Control (C2) server on AWS using Terraform.
+
+1. **Local Orchestration (Docker Compose)**
+   ```bash
+   cd deploy/
+   docker-compose up -d --build
+   ```
+2. **Cloud Provisioning (Terraform)**
+   ```bash
+   cd deploy/terraform/
+   terraform init
+   terraform apply -auto-approve
+   ```
+
+### Edge Node Installation (Android)
 - A rooted Android device (Magisk).
 - Kernel version `>= 5.10` with `CONFIG_BPF_SYSCALL=y`.
 - Ubuntu Chroot environment configured in `/data/local/ubuntu`.
 
-### 1. Flash the Magisk Module
-The `magisk_module/` directory contains the boot scripts necessary to bypass SELinux restrictions and mount `tracefs` before the Android Zygote process initializes.
+**1. Flash the Magisk Module**
 ```bash
 cd magisk_module/
 zip -r OMNI_Magisk_Release.zip .
@@ -73,7 +87,7 @@ adb push OMNI_Magisk_Release.zip /sdcard/Download/
 ```
 *Install via Magisk Manager and reboot.*
 
-### 2. Start the Telemetry Relay
+**2. Start the Telemetry Relay**
 The Go relay compiles down to a statically linked ARM64 binary.
 ```bash
 cd modules/ebpf_kernel
@@ -82,21 +96,15 @@ adb push driftnetd /data/local/tmp/
 adb shell "su -c 'chmod +x /data/local/tmp/driftnetd && /data/local/tmp/driftnetd'"
 ```
 
-### 3. Launch the Dashboard
-The Next.js dashboard runs locally and connects to the Go WebSocket server.
-```bash
-cd modules/driftnet/frontend
-npm run build
-npm run start
-```
-
 ---
 
-## 🛡️ Telemetry Capabilities
+## 🛡️ Telemetry & Benchmarks
 
 - **Process Spawning (`sys_execve`):** Detects hidden shell executions and payload staging.
 - **Network Exfiltration (`sys_connect`):** Maps outbound socket connections to malicious IPs before DNS resolution.
 - **File System Tampering (`sys_openat`):** Monitors access to sensitive credentials, `AndroidManifest.xml`, and shared preferences.
+
+**Performance:** DriftNet's eBPF probes induce less than `2µs` of latency per syscall, making them entirely invisible to standard Ring-3 timing attacks. *See [BENCHMARKS.md](BENCHMARKS.md) for full performance telemetry against Frida and Xposed.*
 
 <div align="center">
   <i>Built for performance. Built for the edge.</i>
