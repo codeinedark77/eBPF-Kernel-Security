@@ -5,6 +5,7 @@
   <img src="https://img.shields.io/badge/Kernel-eBPF-black?style=for-the-badge&logo=linux" />
   <img src="https://img.shields.io/badge/Backend-Go-00ADD8?style=for-the-badge&logo=go" />
   <img src="https://img.shields.io/badge/Frontend-Next.js-black?style=for-the-badge&logo=next.js" />
+  <img src="https://img.shields.io/badge/Agentic_-Phase_2-000000?style=for-the-badge&logo=github" />
 </div>
 
 <br />
