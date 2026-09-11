@@ -18,10 +18,11 @@ Unlike traditional Ring-3 EDRs or user-space hooks (Frida/Xposed) which are easi
 
 ## 🔬 Core Architecture
 
-DriftNet is split into three primary layers:
+DriftNet is split into four primary layers:
 1. **The Kernel Probes (C/eBPF):** Intercepts ARM64 syscalls (`sys_openat`, `sys_connect`, `sys_execve`).
 2. **The Telemetry Relay (Go):** A high-throughput WebSocket server that reads the eBPF BPF map ring buffers.
-3. **The Tactical Dashboard (Next.js):** A real-time UI mapping the telemetry against behavioral baseline signatures.
+3. **The Local AI Triage (Ollama Llama 3.1 8B):** Analyzes incoming syscall payloads in real-time, functioning as an intelligent anomaly detection engine to score and block novel zero-day threats.
+4. **The Tactical Dashboard (Next.js):** A real-time UI mapping the telemetry against behavioral baseline signatures.
 
 ```mermaid
 graph TD
@@ -41,20 +42,23 @@ graph TD
     end
 
     subgraph "Ring-3 (User Space)"
-        GL[Go BPF Loader (CGO)]
-        GR[Go WebSocket Relay]
+        GR[Go WebSocket Relay driftnetd]
+        AI[Local AI Triage Ollama Llama 3.1]
         UI[Next.js Dashboard]
         
-        RB -->|Read Maps| GL
-        GL --> GR
+        RB -->|Read Maps| GR
+        GR <-->|Prompt Payload| AI
         GR -->|ws://events| UI
     end
     
     style K fill:#2c3e50,stroke:#fff,stroke-width:2px,color:#fff
     style RB fill:#e74c3c,stroke:#fff,stroke-width:2px,color:#fff
     style GR fill:#00ADD8,stroke:#fff,stroke-width:2px,color:#fff
+    style AI fill:#8a2be2,stroke:#fff,stroke-width:2px,color:#fff
     style UI fill:#000,stroke:#fff,stroke-width:2px,color:#fff
 ```
+
+**[Read the Future Roadmap (OMNI_ROADMAP.md)](OMNI_ROADMAP.md)** for our plans to scale this into a federated vLLM swarm.
 
 ---
 
@@ -88,13 +92,15 @@ adb push OMNI_Magisk_Release.zip /sdcard/Download/
 ```
 *Install via Magisk Manager and reboot.*
 
-**2. Start the Telemetry Relay**
-The Go relay compiles down to a statically linked ARM64 binary.
+**2. Start the Telemetry Relay & AI Engine**
+The Go relay compiles down to a statically linked ARM64 binary and requires a connection to a local Ollama instance (running on a host machine to prevent thermal shutdown on the edge node).
 ```bash
-cd modules/ebpf_kernel
-GOOS=linux GOARCH=arm64 go build -o driftnetd bpf_loader.go bpf_relay.go
-adb push driftnetd /data/local/tmp/
-adb shell "su -c 'chmod +x /data/local/tmp/driftnetd && /data/local/tmp/driftnetd'"
+# On Laptop
+OLLAMA_HOST=127.0.0.1:11434 ollama serve
+
+# On Phone (via ADB shell)
+cd /data/local/ubuntu
+/bin/su - root -c "./scripts/driftnet_start.sh"
 ```
 
 ---

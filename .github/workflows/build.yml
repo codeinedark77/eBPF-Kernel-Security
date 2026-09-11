@@ -2,46 +2,11 @@ name: CI/CD Build Pipeline (Project OMNI)
 
 on:
   push:
-    branches: [ "main", "dev" ]
+    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
 jobs:
-  build-android-suite:
-    name: Build Android Native C++ Suite
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Setup Android NDK
-        id: setup-ndk
-        uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r25c
-          add-to-path: true
-
-      - name: Configure CMake
-        run: |
-          mkdir -p build
-          cd build
-          cmake .. \
-            -DCMAKE_TOOLCHAIN_FILE=${{ steps.setup-ndk.outputs.ndk-path }}/build/cmake/android.toolchain.cmake \
-            -DANDROID_ABI=arm64-v8a \
-            -DANDROID_PLATFORM=android-29 \
-            -DCMAKE_BUILD_TYPE=Release
-
-      - name: Build C++ Modules (Net/IPC, Compute, AppSec)
-        run: |
-          cd build
-          make -j$(nproc)
-
-      - name: Upload Native Artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: android-native-suite
-          path: build/modules/
-
   build-ebpf-probes:
     name: Build eBPF Kernel Probes
     runs-on: ubuntu-latest
@@ -66,7 +31,7 @@ jobs:
           path: modules/ebpf_kernel/bpf_probe.o
 
   build-go-backend:
-    name: Build DriftNet Go Backend & eBPF Loader
+    name: Build DriftNet Go Backend
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -77,13 +42,37 @@ jobs:
         with:
           go-version: '1.23'
 
-      - name: Build eBPF Go Loader
+      - name: Build DriftNetd
         run: |
-          cd modules/ebpf_kernel
-          go build -o bpf_loader bpf_loader.go
+          cd modules/driftnet
+          go build -o driftnetd ./cmd/driftnetd
 
       - name: Upload Go Artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: go-backends
-          path: modules/ebpf_kernel/bpf_loader
+          name: driftnet-daemon
+          path: modules/driftnet/driftnetd
+
+  build-nextjs-dashboard:
+    name: Build DriftNet Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Build Dashboard
+        run: |
+          cd modules/driftnet/frontend
+          npm ci
+          npm run build
+
+      - name: Upload Frontend Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: driftnet-frontend
+          path: modules/driftnet/frontend/out
