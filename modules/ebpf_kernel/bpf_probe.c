@@ -26,33 +26,26 @@ struct {
     __uint(value_size, sizeof(__u32));
 } events SEC(".maps");
 
+/* 
+DISABLED: Hooking sys_openat causes Fatal Kernel Panics on CRDroid due to high frequency event lock contention.
 SEC("kprobe/__arm64_sys_openat")
 int bpf_prog1(struct pt_regs *ctx)
 {
     struct data_t data = {};
-    
-    // On arm64, PT_REGS_PARM1 is the original pt_regs pointer for syscall wrappers.
     struct user_pt_regs *real_regs = (struct user_pt_regs *)PT_REGS_PARM1(ctx);
-    
-
     data.pid = bpf_get_current_pid_tgid() >> 32;
     data.uid = bpf_get_current_uid_gid() & 0xFFFFFFFF;
-    
-    // Drop Android system framework noise (UIDs under 10000)
     if (data.uid < 10000) {
         return 0;
     }
-
     bpf_get_current_comm(&data.comm, sizeof(data.comm));
-    
     char *fname_ptr;
     bpf_probe_read_user(&fname_ptr, sizeof(fname_ptr), &real_regs->regs[1]);
     bpf_probe_read_user_str(&data.fname, sizeof(data.fname), fname_ptr);
-    
     bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, &data, sizeof(data));
-    
     return 0;
 }
+*/
 
 struct sockaddr_in_v4 {
     unsigned short sin_family;

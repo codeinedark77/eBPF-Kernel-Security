@@ -41,10 +41,10 @@ func main() {
 	}
 	defer coll.Close()
 
-	prog := coll.Programs["bpf_prog1"]
-	if prog == nil {
-		log.Fatal("Failed to find bpf_prog1")
-	}
+	// prog := coll.Programs["bpf_prog1"]
+	// if prog == nil {
+	// 	log.Fatal("Failed to find bpf_prog1")
+	// }
 
 	progConnect := coll.Programs["bpf_prog_connect"]
 	if progConnect == nil {
@@ -57,11 +57,11 @@ func main() {
 	}
 
 	// Open a Kprobe at the entry point of the kernel function and attach the pre-compiled program.
-	kp, err := link.Kprobe("__arm64_sys_openat", prog, nil)
-	if err != nil {
-		log.Fatalf("Opening kprobe openat: %s", err)
-	}
-	defer kp.Close()
+	// kp, err := link.Kprobe("__arm64_sys_openat", prog, nil)
+	// if err != nil {
+	// 	log.Fatalf("Opening kprobe openat: %s", err)
+	// }
+	// defer kp.Close()
 
 	kpConnect, err := link.Kprobe("__arm64_sys_connect", progConnect, nil)
 	if err != nil {
@@ -75,7 +75,7 @@ func main() {
 	}
 	defer kpExecve.Close()
 
-	log.Println("Successfully injected eBPF probes into __arm64_sys_openat, __arm64_sys_connect, and __arm64_sys_execve.")
+	log.Println("Successfully injected eBPF probes into __arm64_sys_connect and __arm64_sys_execve.")
 	log.Println("Waiting for events...")
 
 	// Open a perf event reader from userspace on the PERF_EVENT_ARRAY map
