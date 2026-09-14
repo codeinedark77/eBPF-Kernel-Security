@@ -17,7 +17,7 @@ jobs:
       - name: Install Clang & LLVM Toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang llvm libbpf-dev linux-headers-generic
+          sudo apt-get install -y clang llvm libbpf-dev linux-headers-generic gcc-aarch64-linux-gnu libc6-dev-arm64-cross
 
       - name: Compile eBPF Object
         run: |
@@ -45,7 +45,7 @@ jobs:
       - name: Build DriftNetd
         run: |
           cd modules/driftnet
-          go build -o driftnetd ./cmd/driftnetd
+          GOOS=linux GOARCH=arm64 go build -o driftnetd ./cmd/driftnetd
 
       - name: Upload Go Artifacts
         uses: actions/upload-artifact@v3
@@ -68,7 +68,7 @@ jobs:
       - name: Build Dashboard
         run: |
           cd modules/driftnet/frontend
-          npm ci
+          npm install
           npm run build
 
       - name: Upload Frontend Artifacts
