@@ -22,7 +22,7 @@ jobs:
       - name: Compile eBPF Object
         run: |
           cd modules/ebpf_kernel
-          clang -O2 -target bpf -g -D__TARGET_ARCH_arm64 -I/usr/include/aarch64-linux-gnu -c bpf_probe.c -o bpf_probe.o
+          clang -O2 -target bpf -g -D__TARGET_ARCH_arm64 -I/usr/include/aarch64-linux-gnu -I/usr/aarch64-linux-gnu/include -c bpf_probe.c -o bpf_probe.o
 
       - name: Upload eBPF Artifacts
         uses: actions/upload-artifact@v4
@@ -45,7 +45,7 @@ jobs:
       - name: Build DriftNetd
         run: |
           cd modules/driftnet
-          GOOS=linux GOARCH=arm64 go build -o driftnetd ./cmd/driftnetd
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o driftnetd ./cmd/driftnetd
 
       - name: Upload Go Artifacts
         uses: actions/upload-artifact@v4
