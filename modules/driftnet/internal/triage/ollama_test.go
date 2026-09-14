@@ -18,21 +18,29 @@ import (
 func mockOllama(t *testing.T, checkPrompt func(prompt string), responseText string) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/generate" {
-			t.Errorf("expected request to /api/generate, got %s", r.URL.Path)
+		if r.URL.Path != "/v1/chat/completions" {
+			t.Errorf("expected request to /v1/chat/completions, got %s", r.URL.Path)
 		}
 		var req generateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatalf("server: decode request: %v", err)
 		}
-		if checkPrompt != nil {
-			checkPrompt(req.Prompt)
+		if checkPrompt != nil && len(req.Messages) > 0 {
+			checkPrompt(req.Messages[0].Content)
 		}
 		if req.Stream {
 			t.Errorf("expected Stream=false (we want a single response, not SSE chunks), got true")
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(generateResponse{Response: responseText})
+		json.NewEncoder(w).Encode(generateResponse{
+			Choices: []struct {
+				Message struct {
+					Content string `json:"content"`
+				} `json:"message"`
+			}{{Message: struct {
+				Content string `json:"content"`
+			}{Content: responseText}}},
+		})
 	}))
 }
 

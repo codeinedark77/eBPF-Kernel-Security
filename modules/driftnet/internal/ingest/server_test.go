@@ -101,7 +101,7 @@ func TestHandleWS_OrdinaryEventsDoNotFlag(t *testing.T) {
 	var mu sync.Mutex
 	var flaggedCount, eventCount int
 	srv.OnEvent = func(ev *store.Event) { mu.Lock(); eventCount++; mu.Unlock() }
-	srv.OnFlagged = func(ev *store.Event) { mu.Lock(); flaggedCount++; mu.Unlock() }
+	srv.OnFlagged = func(ev *store.Event, reply func(string, interface{})) { mu.Lock(); flaggedCount++; mu.Unlock() }
 
 	conn := dialWS(t, hs)
 	defer conn.Close()
@@ -145,7 +145,7 @@ func TestHandleWS_WeakCipherFlagsViaRulesRegardlessOfNovelty(t *testing.T) {
 
 	var mu sync.Mutex
 	var flagged []*store.Event
-	srv.OnFlagged = func(ev *store.Event) { mu.Lock(); flagged = append(flagged, ev); mu.Unlock() }
+	srv.OnFlagged = func(ev *store.Event, reply func(string, interface{})) { mu.Lock(); flagged = append(flagged, ev); mu.Unlock() }
 
 	conn := dialWS(t, hs)
 	defer conn.Close()
@@ -253,7 +253,7 @@ func TestHandleWS_AppVersionChangeFlagsThroughRealPipeline(t *testing.T) {
 	var flagged []*store.Event
 	var eventCount int
 	srv.OnEvent = func(ev *store.Event) { mu.Lock(); eventCount++; mu.Unlock() }
-	srv.OnFlagged = func(ev *store.Event) { mu.Lock(); flagged = append(flagged, ev); mu.Unlock() }
+	srv.OnFlagged = func(ev *store.Event, reply func(string, interface{})) { mu.Lock(); flagged = append(flagged, ev); mu.Unlock() }
 
 	conn := dialWS(t, hs)
 	defer conn.Close()
@@ -329,7 +329,7 @@ func TestHandleWS_CompressorDisagreementFlagsThroughRealPipeline(t *testing.T) {
 	var flagged []*store.Event
 	var eventCount int
 	srv.OnEvent = func(ev *store.Event) { mu.Lock(); eventCount++; mu.Unlock() }
-	srv.OnFlagged = func(ev *store.Event) { mu.Lock(); flagged = append(flagged, ev); mu.Unlock() }
+	srv.OnFlagged = func(ev *store.Event, reply func(string, interface{})) { mu.Lock(); flagged = append(flagged, ev); mu.Unlock() }
 
 	conn := dialWS(t, hs)
 	defer conn.Close()
