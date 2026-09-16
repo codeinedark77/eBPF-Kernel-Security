@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import NervousGraph from "../components/NervousGraph";
 
 const API_BASE: string = ""; // For local dev it would be http://localhost:8080, but Next.js will be served by Go so "" is correct
 const THRESHOLD = 0.5;
@@ -116,7 +117,7 @@ export default function Dashboard() {
       <header className="flex items-center gap-3 px-6 py-4 border-b border-[var(--color-border)] glass shrink-0 z-20">
         <div className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${connected ? 'bg-[var(--color-brand-cyan)] animate-pulse-cyan' : 'bg-[var(--color-brand-crimson)] shadow-[0_0_8px_var(--color-brand-crimson)]'}`} />
         <div className="font-mono font-bold text-[18px] tracking-[0.08em] text-[var(--color-text-main)] uppercase drop-shadow-md">
-          drift<span className="text-[var(--color-brand-cyan)] cyber-glow px-1.5 py-0.5 rounded ml-1 bg-black/40">net</span>
+          OMNI<span className="text-[var(--color-brand-cyan)] cyber-glow px-1.5 py-0.5 rounded ml-1 bg-black/40">DRIFTNET</span>
         </div>
         <div className="ml-auto flex gap-6 font-mono text-[13px] text-[var(--color-text-muted)] tracking-widest font-bold">
           {connected ? (
@@ -168,7 +169,9 @@ export default function Dashboard() {
           <KpiGrid total={recent.length} flagged={flagged.length} sources={sources.length} />
           
           <div className="flex-1 flex flex-col min-w-0 glass border border-[var(--color-border)] rounded-lg shadow-2xl overflow-hidden relative">
-            <ScopePanel activeSource={activeSource} events={currentSourceEvents()} />
+            <div className="h-[40vh] w-full border-b border-[var(--color-border)] shrink-0 bg-black/40">
+              <NervousGraph events={recent} threshold={THRESHOLD} />
+            </div>
             <LogPanel events={currentSourceEvents()} activeSource={activeSource} />
           </div>
         </main>

@@ -130,6 +130,35 @@ func (h *Handlers) FlaggedEvents(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, out)
 }
 
+func (h *Handlers) Sync(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		h.FlaggedEvents(w, r)
+		return
+	}
+	
+	if r.Method == http.MethodPost {
+		var incoming []*store.Event
+		if err := json.NewDecoder(r.Body).Decode(&incoming); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		
+		added := 0
+		for _, ev := range incoming {
+			if ev.NCDScore >= h.flagThreshold || len(ev.RuleMatches) > 0 {
+				// Mark it as swarm intel
+				ev.Triage = "[SWARM INTEL] " + ev.Triage
+				h.Push(ev)
+				added++
+			}
+		}
+		writeJSON(w, map[string]interface{}{"status": "synced", "added": added})
+		return
+	}
+	
+	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+}
+
 // Sources returns the distinct device:app pairs the dashboard should
 // list, deduped from novelty.Manager's internal keys.
 //

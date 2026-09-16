@@ -1,0 +1,6 @@
+In file included from bpf_probe.c:1:
+In file included from /usr/include/linux/bpf.h:11:
+/usr/include/linux/types.h:5:10: fatal error: 'asm/types.h' file not found
+    5 | #include <asm/types.h>
+      |          ^~~~~~~~~~~~~
+1 error generated.

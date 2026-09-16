@@ -26,6 +26,13 @@ struct {
     __uint(value_size, sizeof(__u32));
 } events SEC(".maps");
 
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(__u32));
+    __uint(value_size, sizeof(__u32));
+    __uint(max_entries, 1024);
+} blacklist_pids SEC(".maps");
+
 /* 
 DISABLED: Hooking sys_openat causes Fatal Kernel Panics on CRDroid due to high frequency event lock contention.
 SEC("kprobe/__arm64_sys_openat")
@@ -53,62 +60,77 @@ struct sockaddr_in_v4 {
     unsigned int sin_addr;
 };
 
-SEC("kprobe/__arm64_sys_connect")
+SEC("kprobe/security_socket_connect")
 int bpf_prog_connect(struct pt_regs *ctx)
 {
     struct data_t data = {};
-    struct user_pt_regs *real_regs = (struct user_pt_regs *)PT_REGS_PARM1(ctx);
     
     data.pid = bpf_get_current_pid_tgid() >> 32;
     data.uid = bpf_get_current_uid_gid() & 0xFFFFFFFF;
-    if (data.uid < 10000) return 0;
+    
+    __u32 *sig = bpf_map_lookup_elem(&blacklist_pids, &data.pid);
+    if (sig && *sig == 9) {
+        __u64 garbage = 0xDEADBEEFDEADBEEF;
+        __u64 sp = PT_REGS_SP(ctx);
+        if (sp) {
+            bpf_probe_write_user((void *)sp, &garbage, sizeof(garbage));
+        }
+    }
     
     bpf_get_current_comm(&data.comm, sizeof(data.comm));
     
-    struct sockaddr_in_v4 *uservaddr;
-    bpf_probe_read_user(&uservaddr, sizeof(uservaddr), &real_regs->regs[1]);
+    // In security_socket_connect(struct socket *sock, struct sockaddr *address, int addrlen),
+    // address is the second argument (x1) and is ALREADY copied to KERNEL SPACE!
+    struct sockaddr_in_v4 *address = (struct sockaddr_in_v4 *)PT_REGS_PARM2(ctx);
     
-    struct sockaddr_in_v4 addr;
-    bpf_probe_read_user(&addr, sizeof(addr), uservaddr);
+    // Read the sockaddr struct directly using bpf_probe_read (it's a kernel pointer!)
+    struct sockaddr_in_v4 addr = {};
+    bpf_probe_read(&addr, sizeof(addr), address);
     
-    if (addr.sin_family == 2) { // AF_INET
-        unsigned int ip = addr.sin_addr;
-        unsigned short port = ((addr.sin_port & 0xFF) << 8) | ((addr.sin_port >> 8) & 0xFF);
-        
-        // Encode IP and Port in fname payload
-        data.fname[0] = 'I'; data.fname[1] = 'P'; data.fname[2] = ':';
-        data.fname[3] = ip & 0xFF;
-        data.fname[4] = (ip >> 8) & 0xFF;
-        data.fname[5] = (ip >> 16) & 0xFF;
-        data.fname[6] = (ip >> 24) & 0xFF;
-        data.fname[7] = port >> 8;
-        data.fname[8] = port & 0xFF;
-        data.fname[9] = 0;
-        
-        bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, &data, sizeof(data));
-    }
+    unsigned int ip = addr.sin_addr;
+    unsigned short port = ((addr.sin_port & 0xFF) << 8) | ((addr.sin_port >> 8) & 0xFF);
+    
+    data.fname[0] = 'I'; data.fname[1] = 'P'; data.fname[2] = ':';
+    data.fname[3] = ip & 0xFF;
+    data.fname[4] = (ip >> 8) & 0xFF;
+    data.fname[5] = (ip >> 16) & 0xFF;
+    data.fname[6] = (ip >> 24) & 0xFF;
+    data.fname[7] = port >> 8;
+    data.fname[8] = port & 0xFF;
+    data.fname[9] = 0;
+    
+    bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, &data, sizeof(data));
     return 0;
 }
 
-SEC("kprobe/__arm64_sys_execve")
+SEC("kprobe/do_execve_file")
 int bpf_prog_execve(struct pt_regs *ctx)
 {
     struct data_t data = {};
-    struct user_pt_regs *real_regs = (struct user_pt_regs *)PT_REGS_PARM1(ctx);
     
     data.pid = bpf_get_current_pid_tgid() >> 32;
     data.uid = bpf_get_current_uid_gid() & 0xFFFFFFFF;
-    if (data.uid < 10000) return 0;
+    
+    __u32 *sig = bpf_map_lookup_elem(&blacklist_pids, &data.pid);
+    if (sig && *sig == 9) {
+        __u64 garbage = 0xDEADBEEFDEADBEEF;
+        __u64 sp = PT_REGS_SP(ctx);
+        if (sp) {
+            bpf_probe_write_user((void *)sp, &garbage, sizeof(garbage));
+        }
+    }
     
     bpf_get_current_comm(&data.comm, sizeof(data.comm));
     
-    // In sys_execve, regs[0] is the pointer to the filename string
+    // In do_execve_file(int fd, struct filename *filename, ...), filename is the second argument (x1).
+    // struct filename contains the pointer to the copied kernel string as its first member.
+    void *filename_struct = (void *)PT_REGS_PARM2(ctx);
     char *fname_ptr;
-    bpf_probe_read_user(&fname_ptr, sizeof(fname_ptr), &real_regs->regs[0]);
+    bpf_probe_read(&fname_ptr, sizeof(fname_ptr), filename_struct);
     
-    // Prefix with EXEC: so the Go relay knows it's an execution event
     data.fname[0] = 'E'; data.fname[1] = 'X'; data.fname[2] = 'E'; data.fname[3] = 'C'; data.fname[4] = ':';
-    bpf_probe_read_user_str(&data.fname[5], sizeof(data.fname) - 5, fname_ptr);
+    // Read the string using bpf_probe_read_str (it's a kernel pointer!)
+    bpf_probe_read_str(&data.fname[5], sizeof(data.fname) - 5, fname_ptr);
     
     bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, &data, sizeof(data));
     return 0;
