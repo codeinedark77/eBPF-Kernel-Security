@@ -22,7 +22,7 @@ jobs:
       - name: Compile eBPF Object
         run: |
           cd modules/ebpf_kernel
-          clang -O2 -target bpf -g -D__TARGET_ARCH_x86 -c bpf_probe.c -o bpf_probe.o
+          clang -O2 -target bpf -g -D__TARGET_ARCH_x86 -I/usr/include/x86_64-linux-gnu -c bpf_probe.c -o bpf_probe.o
 
       - name: Upload eBPF Artifacts
         uses: actions/upload-artifact@v4
