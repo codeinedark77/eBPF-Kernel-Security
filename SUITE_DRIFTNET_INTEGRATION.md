@@ -65,11 +65,11 @@
 adb shell "/data/local/tmp/vulkan_engine"
 
 # 2. Start DriftNet Backend on Laptop
-cd /home/codeinedark/Desktop/Arsenal/driftnet && ./driftnetd
+cd driftnet && ./driftnetd
 
 # 3. Launch Frida Telemetry Relay
-cd /home/codeinedark/Desktop/Arsenal/driftnet && python3 scripts/relay.py --package <target_app>
+cd driftnet && python3 scripts/relay.py --package <target_app>
 
 # 4. Launch Next.js Security Dashboard
-cd /home/codeinedark/Desktop/Arsenal/driftnet/frontend && npm run dev
+cd driftnet/frontend && npm run dev
 ```

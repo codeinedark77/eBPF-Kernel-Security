@@ -1,0 +1,62 @@
+--- internal/rules/rules.go
++++ internal/rules/rules.go
+@@ -19,6 +19,7 @@
+ 
+ import (
+ 	"encoding/json"
++	"fmt"
+ 	"strings"
+ 	"sync"
+ 	"github.com/yash/driftnet/internal/static"
+@@ -139,7 +140,7 @@
+ // source is "device:app", matching novelty.Manager's key scheme, so the
+ // first-seen-host tracker stays isolated per app the same way novelty
+ // baselines do.
+-func (e *Evaluator) Evaluate(source, kind string, detail json.RawMessage) []string {
++func (e *Evaluator) Evaluate(source, kind string, detail json.RawMessage, analyzer *static.Analyzer) []string {
+ 	warmedUp := e.recordEventAndCheckWarmup(source)
+ 
+ 	var obj map[string]any
+@@ -209,6 +210,10 @@
+ 		if _, ok := stringField(obj, "secret_pattern"); ok {
+ 			matches = append(matches, "secret_leak")
+ 		}
++		
++		if analyzer != nil && !analyzer.HasPermission("android.permission.READ_EXTERNAL_STORAGE") && !analyzer.HasPermission("android.permission.WRITE_EXTERNAL_STORAGE") {
++			matches = append(matches, "manifest_anomaly:undeclared_storage_access")
++		}
+ 
+ 	case "network":
+ 		// Check for specific weak patterns (e.g. basic auth over HTTP)
+@@ -216,6 +221,10 @@
+ 		if strings.HasPrefix(val, "http://") && strings.Contains(val, "@") {
+ 			matches = append(matches, "insecure_basic_auth")
+ 		}
++		
++		if analyzer != nil && !analyzer.HasPermission("android.permission.INTERNET") {
++			matches = append(matches, "manifest_anomaly:undeclared_internet_access")
++		}
+ 
+ 	case "intent":
+ 		// Insecure intent: implicit intent (no explicit component) carrying
+@@ -312,6 +321,20 @@
+ 		if _, ok := stringField(obj, "secret_pattern"); ok {
+ 			matches = append(matches, "insecure_clipboard")
+ 		}
++		
++	case "anti_analysis":
++		// Triggered when app hunts for root or frida
++		matches = append(matches, "anti_analysis_detected")
++		
++	case "tracing":
++		// Triggered by high value class loads
++		matches = append(matches, "high_value_class_loaded")
++		
++	case "binder":
++		// Raw IPC calls
++		if code, ok := numField(obj, "code"); ok {
++			matches = append(matches, fmt.Sprintf("binder_transaction:%v", code))
++		}
+ 		
+ 	case "ipc":
+ 		// Insecure broadcast receiver: registering a global receiver

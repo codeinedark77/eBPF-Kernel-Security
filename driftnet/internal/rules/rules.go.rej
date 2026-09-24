@@ -1,0 +1,11 @@
+--- rules.go
++++ rules.go
+@@ -108,7 +109,7 @@
+ // evaluated stateless-ly in isolation; things like "app updated" or
+ // "first time seeing this host" inherently rely on maintaining a record
+ // of what's been seen before.
+-func (e *Evaluator) Evaluate(source, kind string, detail json.RawMessage) []string {
++func (e *Evaluator) Evaluate(source, kind string, detail json.RawMessage, analyzer *static.Analyzer) []string {
+ 	var matches []string
+ 
+ 	if e.recordEventAndCheckWarmup(source) {

@@ -1,0 +1,483 @@
+// Package rules implements known-bad-pattern detection, complementary to
+// (not a replacement for) the compression-based novelty scorer in
+// internal/novelty.
+//
+// The distinction matters: novelty scoring answers "does this look unlike
+// anything this app has done before" -- it has no concept of "bad," only
+// "different." A weak cipher used consistently from an app's first launch
+// would score low novelty forever, because it IS the baseline. Rules
+// answer a different question: "does this match a pattern known to be
+// bad regardless of whether it's novel." The two are meant to run
+// together; an event can be flagged by either, or both.
+//
+// Deliberately excluded: TLD-based host blocklisting (e.g. flagging
+// .ru/.tk/.xyz domains). This is a common but weak heuristic in security
+// tooling -- huge numbers of legitimate services use those TLDs, and it
+// teaches nothing about actual behavior. Included here as a documented
+// decision, not an oversight: a rules engine's credibility depends on low
+// false-positive rules, and TLD blocklisting doesn't clear that bar.
+package rules
+
+import (
+	"encoding/json"
+	"strings"
+	"sync"
+	"github.com/yash/driftnet/internal/static"
+)
+
+// weakCryptoPatterns are substrings (case-insensitive) that indicate a
+// deprecated or broken cryptographic primitive when found in a "crypto"
+// event's algorithm/transformation field. Scoped to kind=="crypto" only
+// -- these substrings could appear incidentally elsewhere (e.g. "des" in
+// an unrelated word) and we don't want that noise leaking into other
+// event kinds.
+var weakCryptoPatterns = []string{
+	"des/", "/des", "des-", // DES and 3DES transformation strings
+	"rc4",
+	"/ecb/", "ecb/nopadding", // ECB mode: same plaintext block -> same ciphertext block, ignores IV
+	"md5",
+	"sha1",
+	"pkcs1padding", // legacy RSA padding, vulnerable to Bleichenbacher-style padding-oracle attacks; OAEP is the modern replacement
+}
+
+// isRSAECBPlaceholder reports whether transformation uses Java's
+// "RSA/ECB/<padding>" naming convention. Found as a real false positive
+// during live testing (not a hypothetical): "ECB" here is a padding-
+// scheme placeholder, not a genuine block-cipher mode -- RSA has no
+// block-cipher mode in the sense DES/AES do, so RSA/ECB/OAEPWithSHA-
+// 256AndMGF1Padding (a modern, RECOMMENDED RSA configuration) was
+// matching the generic "/ecb/" weak-mode pattern purely on substring
+// coincidence, flagging good crypto as weak. The genuinely weak RSA
+// case (legacy PKCS1v1.5 padding) is now caught precisely by the
+// "pkcs1padding" pattern above instead of the imprecise ECB check.
+func isRSAECBPlaceholder(transformation string) bool {
+	return strings.HasPrefix(strings.ToLower(transformation), "rsa/ecb/")
+}
+
+// sensitivePathPatterns are substrings (case-insensitive) that indicate a
+// filesystem path likely to contain credentials or personal data. Scoped
+// to kind=="fs" only.
+var sensitivePathPatterns = []string{
+	"contacts", "wallet", ".pem", "private_key", "privatekey",
+	"keystore", "password", "credential", "shared_prefs",
+	"backup.ab", "cookies", "session_token", ".ssh",
+}
+
+// sensitiveIntentPatterns are substrings (case-insensitive) in an intent's
+// data URI that suggest sensitive information is being leaked through an
+// implicit intent. Scoped to kind=="intent" only.
+var sensitiveIntentPatterns = []string{
+	"password", "token", "secret", "api_key", "apikey",
+	"auth", "credential", "session", "oauth", "access_key",
+	"private_key", "ssn", "credit_card",
+}
+
+// sqlInjectionPatterns are substrings (case-insensitive) that suggest
+// raw SQL string concatenation rather than parameterized queries. The
+// presence of these patterns in an unparameterized query is a strong
+// indicator of SQL injection vulnerability. Scoped to kind=="sql" only.
+var sqlInjectionPatterns = []string{
+	"' or ", "' and ", "1=1", "1 = 1",
+	"union select", "--", "drop table", "insert into",
+	"delete from", "update ", " set ",
+}
+
+// Evaluator runs stateless pattern rules plus one stateful rule
+// (first-time-seen network host, tracked per source key). Safe for
+// concurrent use.
+type Evaluator struct {
+	mu           sync.Mutex
+	seenHosts    map[string]map[string]bool // source -> set of hosts observed before
+	eventCounts  map[string]int             // source -> total events seen (any kind)
+	lastVersion  map[string]string          // source -> last seen app_version
+	warmupEvents int
+}
+
+// DefaultWarmupEvents is a reasonable starting point for
+// Config.WarmupEvents: enough that a real app's normal startup burst of
+// first-time hosts (CDNs, API endpoints, ad SDKs) has mostly completed,
+// not so many that a genuinely fast-moving compromise sits unflagged for
+// long. Most callers want this rather than the zero value -- see Config.
+const DefaultWarmupEvents = 40
+
+// Config controls the rules evaluator.
+type Config struct {
+	// WarmupEvents is how many events (of any kind) a source must produce
+	// before first_seen_host starts emitting matches. Below this count,
+	// new hosts are still recorded into the seen-set (so they won't
+	// spuriously re-flag once warmup ends) but don't produce a match.
+	//
+	// Zero means no warmup: every new host flags starting from the very
+	// first event, matching this rule's original behavior before the
+	// warmup gate existed. That's a deliberate choice, not a missing
+	// default -- a caller who builds a bare Config{} without reading this
+	// doc gets the conservative (over-flag, never silently under-flag)
+	// behavior rather than a hidden number they didn't ask for. Pass
+	// DefaultWarmupEvents explicitly for the tuned production behavior.
+	//
+	// This exists because of a real problem found after shipping the
+	// rule without it: instrumenting a real app for the first time can
+	// legitimately mean contacting dozens of hosts within the first few
+	// seconds -- normal startup behavior that floods the flagged view
+	// with "first seen" hits for everything at once, drowning out events
+	// actually worth a look.
+	WarmupEvents int
+}
+
+func NewEvaluator(cfg Config) *Evaluator {
+	return &Evaluator{
+		seenHosts:    make(map[string]map[string]bool),
+		eventCounts:  make(map[string]int),
+		lastVersion:  make(map[string]string),
+		warmupEvents: cfg.WarmupEvents,
+	}
+}
+
+// Evaluate returns the names of every rule that matched this event.
+// source is "device:app", matching novelty.Manager's key scheme, so the
+// first-seen-host tracker stays isolated per app the same way novelty
+// baselines do.
+func (e *Evaluator) Evaluate(source, kind string, detail json.RawMessage) []string {
+	warmedUp := e.recordEventAndCheckWarmup(source)
+
+	var obj map[string]any
+	// Malformed/non-object detail: no rules can evaluate meaningfully,
+	// same fallback stance as fingerprint.Enrich -- don't fail the event,
+	// just report no matches.
+	if err := json.Unmarshal(detail, &obj); err != nil {
+		return nil
+	}
+
+	var matches []string
+
+	// secret_leak is cross-cutting, not scoped to one kind: agent/hooks.js
+	// stamps a redacted secret_pattern field on network events (header
+	// scan), fs events (SharedPreferences value scan), and custom events
+	// (log-message scan) -- same field name by design, so one check here
+	// covers all three hook points rather than duplicating this in each
+	// kind's case below. The actual secret VALUE never reaches this code
+	// at all -- see agent/hooks.js's scanForSecrets doc: detection and
+	// redaction both happen on-device, before anything is transmitted.
+	if pattern, ok := stringField(obj, "secret_pattern"); ok && pattern != "" {
+		matches = append(matches, "secret_leak:"+pattern)
+	}
+
+	switch kind {
+	case "crypto":
+		if s, ok := stringField(obj, "transformation"); ok && isWeakCipher(s) {
+			matches = append(matches, "weak_cipher")
+		} else if s, ok := stringField(obj, "algorithm"); ok && isWeakCipher(s) {
+			matches = append(matches, "weak_cipher")
+		}
+
+	case "fs":
+		if s, ok := stringField(obj, "path"); ok && matchesAny(s, sensitivePathPatterns) {
+			matches = append(matches, "sensitive_path")
+		}
+		
+		if analyzer != nil && !analyzer.HasPermission("android.permission.READ_EXTERNAL_STORAGE") && !analyzer.HasPermission("android.permission.WRITE_EXTERNAL_STORAGE") {
+			matches = append(matches, "manifest_anomaly:undeclared_storage_access")
+		}
+
+	case "network":
+		if host, ok := stringField(obj, "host"); ok && host != "" {
+			isNew := e.firstTimeHost(source, host)
+			// Always record the host (isNew tells us whether to), even
+			// during warmup -- silently building up "seen" state so that
+			// hosts contacted during the flood window don't spuriously
+			// re-flag the moment warmup ends. Only the *match* is gated.
+			if isNew && warmedUp {
+				matches = append(matches, "first_seen_host")
+			}
+		}
+		
+		if analyzer != nil && !analyzer.HasPermission("android.permission.INTERNET") {
+			matches = append(matches, "manifest_anomaly:undeclared_internet_access")
+		}
+
+	case "intent":
+		// Insecure intent: implicit intent (no explicit component) carrying
+		// sensitive data in its URI, or granting URI permissions globally.
+		// An implicit intent with sensitive data can be intercepted by any
+		// app that registers a matching intent filter.
+		isExplicit, _ := boolField(obj, "is_explicit")
+		dataURI, hasURI := stringField(obj, "data_uri")
+		hasGrant, _ := boolField(obj, "has_grant_uri_permission")
+
+		if !isExplicit {
+			if hasURI && dataURI != "" && matchesAny(dataURI, sensitiveIntentPatterns) {
+				matches = append(matches, "insecure_intent")
+			}
+			if hasGrant {
+				matches = append(matches, "insecure_intent")
+			}
+		}
+
+	case "sql":
+		// SQL injection: unparameterized query with suspicious patterns.
+		// rawQuery called with null/empty args AND the query contains
+		// literal strings or SQL injection markers is a strong signal.
+		// execSQL with a single string argument is inherently
+		// unparameterized — any variable data was concatenated in.
+		parameterized, _ := boolField(obj, "parameterized")
+		query, hasQuery := stringField(obj, "query")
+		op, _ := stringField(obj, "op")
+
+		if !parameterized && hasQuery && query != "" {
+			lq := strings.ToLower(query)
+			// Flag 1: Query contains known injection patterns
+			if matchesAny(query, sqlInjectionPatterns) {
+				matches = append(matches, "insecure_sql_query")
+			} else if op == "exec_sql" && (strings.Contains(lq, "where") || strings.Contains(lq, "values")) {
+				// Flag 2: execSQL (inherently unparameterized) with WHERE
+				// or VALUES clauses — variable data was definitely
+				// concatenated, since there's no args parameter.
+				matches = append(matches, "insecure_sql_query")
+			} else if op == "raw_query" && strings.Contains(lq, "where") && !strings.Contains(lq, "?") {
+				// Flag 3: rawQuery with WHERE but no ? placeholders,
+				// called with empty args — almost certainly concatenated.
+				matches = append(matches, "insecure_sql_query")
+			}
+		}
+
+	case "webview":
+		// Insecure WebView configuration: JavaScript interfaces (classic
+		// Android RCE vector pre-API-17, still a significant attack surface),
+		// mixed content allowing HTTP inside HTTPS (MITM), or file access
+		// enabled (local file exfiltration via JS).
+		op, _ := stringField(obj, "op")
+		switch op {
+		case "js_interface":
+			// addJavascriptInterface exposes Java objects to JS in the
+			// WebView — a classic, well-documented Android vulnerability.
+			matches = append(matches, "insecure_webview")
+		case "mixed_content":
+			// MIXED_CONTENT_ALWAYS_ALLOW (value 0) permits HTTP
+			// resources inside HTTPS pages — trivially MITMable.
+			if val, ok := numField(obj, "value"); ok && val == 0 {
+				matches = append(matches, "insecure_webview")
+			}
+		case "file_access":
+			// setAllowFileAccess(true) lets WebView JS read local files
+			// — combined with JS enabled, this is a local exfil vector.
+			matches = append(matches, "insecure_webview")
+		}
+
+	case "biometric":
+		// Weak biometric authentication: authenticate() called without
+		// a CryptoObject means the app only checks the boolean
+		// onAuthenticationSucceeded callback, which can be trivially
+		// bypassed by hooking the callback to always return success.
+		// With a CryptoObject, the auth result is cryptographically
+		// bound to a key that only unlocks on real biometric success —
+		// much harder to bypass.
+		hasCrypto, _ := boolField(obj, "has_crypto_object")
+		if !hasCrypto {
+			matches = append(matches, "weak_biometric")
+		}
+		
+	case "clipboard":
+		// Insecure clipboard usage: copying sensitive data to the global
+		// clipboard where any app can read it.
+		if _, ok := stringField(obj, "secret_pattern"); ok {
+			matches = append(matches, "insecure_clipboard")
+		}
+		
+	case "anti_analysis":
+		// Triggered when app hunts for root or frida
+		matches = append(matches, "anti_analysis_detected")
+		
+	case "tracing":
+		// Triggered by high value class loads
+		matches = append(matches, "high_value_class_loaded")
+		
+	case "binder":
+		// Raw IPC calls
+		if code, ok := numField(obj, "code"); ok {
+			matches = append(matches, fmt.Sprintf("binder_transaction:%v", code))
+		}
+		
+	case "ipc":
+		// Insecure broadcast receiver: registering a global receiver
+		// without signature-level permissions.
+		op, _ := stringField(obj, "op")
+		if op == "register_receiver" {
+			permission, _ := stringField(obj, "permission")
+			// A receiver is exposed if permission is none, null, or a normal permission
+			if permission == "none" || permission == "null" {
+				matches = append(matches, "insecure_broadcast_receiver")
+			}
+		}
+
+	case "ui":
+		// Tapjacking: missing filterTouchesWhenObscured attribute
+		op, _ := stringField(obj, "op")
+		if op == "activity_resume" {
+			filterTouches, _ := boolField(obj, "filter_touches")
+			if !filterTouches {
+				matches = append(matches, "tapjacking_risk")
+			}
+		}
+	}
+
+	// For network kind, also check for weak hostname verification
+	if kind == "network" {
+		op, _ := stringField(obj, "op")
+		if op == "set_hostname_verifier" || op == "set_hostname_verifier_instance" {
+			isSafe, _ := boolField(obj, "is_default_or_safe")
+			if !isSafe {
+				matches = append(matches, "weak_hostname_verification")
+			}
+		}
+	}
+
+	return matches
+}
+
+// recordEventAndCheckWarmup increments source's total event count and
+// returns whether that source has cleared warmup as of this call
+// (inclusive -- the event that reaches exactly warmupEvents counts as
+// warmed up).
+func (e *Evaluator) recordEventAndCheckWarmup(source string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.eventCounts[source]++
+	return e.eventCounts[source] > e.warmupEvents
+}
+
+// ObserveOnly rebuilds internal state (event count, seen-hosts set) from
+// a historical event without evaluating rules or returning matches. Used
+// during WAL replay on startup: a restart must not re-flag every host a
+// source has EVER contacted just because the in-memory Evaluator started
+// fresh, and it must not reset warmup progress for sources that had
+// already cleared it before the restart. Found missing during a review
+// of the per-kind baseline change, not from a report -- driftnetd had
+// never actually been restarted with existing WAL data in any testing
+// up to that point, so this gap had zero live verification either way.
+func (e *Evaluator) ObserveOnly(source, kind string, detail json.RawMessage, version string) {
+	e.recordEventAndCheckWarmup(source)
+	e.recordVersionSilently(source, version)
+
+	if kind != "network" {
+		return
+	}
+	var obj map[string]any
+	if err := json.Unmarshal(detail, &obj); err != nil {
+		return
+	}
+	if host, ok := stringField(obj, "host"); ok && host != "" {
+		e.firstTimeHost(source, host) // return value unused -- just recording
+	}
+}
+
+// CheckVersionChange records version as the latest seen for source and
+// reports whether it differs from the previously recorded version. The
+// very first event for a source always reports changed=false, even
+// though "unknown -> v1.0" is technically a transition -- there's no
+// real previous version to contrast against, so nothing informative to
+// say yet. Empty or "unknown" versions (the value agent/hooks.js sends
+// before it finishes resolving the real one) are ignored entirely rather
+// than recorded, so a slow version-resolution race can't itself look
+// like a version change.
+func (e *Evaluator) CheckVersionChange(source, version string) (changed bool, previous string) {
+	if version == "" || version == "unknown" {
+		return false, ""
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	prev, ok := e.lastVersion[source]
+	e.lastVersion[source] = version
+	if !ok || prev == version {
+		return false, prev
+	}
+	return true, prev
+}
+
+func (e *Evaluator) recordVersionSilently(source, version string) {
+	if version == "" || version == "unknown" {
+		return
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.lastVersion[source] = version
+}
+
+func (e *Evaluator) firstTimeHost(source, host string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	hosts, ok := e.seenHosts[source]
+	if !ok {
+		hosts = make(map[string]bool)
+		e.seenHosts[source] = hosts
+	}
+	if hosts[host] {
+		return false
+	}
+	hosts[host] = true
+	return true
+}
+
+func stringField(obj map[string]any, key string) (string, bool) {
+	v, ok := obj[key]
+	if !ok {
+		return "", false
+	}
+	s, ok := v.(string)
+	return s, ok
+}
+
+func boolField(obj map[string]any, key string) (bool, bool) {
+	v, ok := obj[key]
+	if !ok {
+		return false, false
+	}
+	b, ok := v.(bool)
+	return b, ok
+}
+
+func numField(obj map[string]any, key string) (float64, bool) {
+	v, ok := obj[key]
+	if !ok {
+		return 0, false
+	}
+	n, ok := v.(float64)
+	return n, ok
+}
+
+func matchesAny(s string, patterns []string) bool {
+	ls := strings.ToLower(s)
+	for _, p := range patterns {
+		if strings.Contains(ls, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// isWeakCipher reports whether s (a Cipher transformation or algorithm
+// string) indicates a deprecated or broken primitive. Handles one
+// necessary exception, found as a real false positive during live
+// testing: Java's "RSA/ECB/<padding>" naming convention uses "ECB" as a
+// padding-scheme placeholder, not a genuine block-cipher mode --
+// RSA/ECB/OAEPWithSHA-256AndMGF1Padding (modern, recommended RSA) was
+// matching the ECB-specific patterns purely on substring coincidence.
+// The genuinely weak RSA case (legacy PKCS1v1.5 padding) is still caught
+// -- via the separate "pkcs1padding" pattern, which is NOT excluded
+// here, only the two ECB-specific patterns are.
+func isWeakCipher(s string) bool {
+	if !isRSAECBPlaceholder(s) {
+		return matchesAny(s, weakCryptoPatterns)
+	}
+	ls := strings.ToLower(s)
+	for _, p := range weakCryptoPatterns {
+		if p == "/ecb/" || p == "ecb/nopadding" {
+			continue // excluded for RSA's placeholder usage -- see doc above
+		}
+		if strings.Contains(ls, p) {
+			return true
+		}
+	}
+	return false
+}
