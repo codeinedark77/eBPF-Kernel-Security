@@ -1,0 +1,20 @@
+--- cmd/driftnetd/main.go
++++ cmd/driftnetd/main.go
+@@ -58,7 +58,7 @@
+ 
+ 	rulesEvaluator := rules.NewEvaluator(rules.Config{WarmupEvents: rules.DefaultWarmupEvents})
+ 
+-	// Warm the novelty baselines AND rules state from history so a
++	// Warm the novelty baselines AND rules state from history so a
+ 	// restart doesn't reset every source back to "everything looks
+ 	// novel" and "every host looks first-seen." All warmup calls below
+ 	// use the EXACT SAME key/payload construction as live ingest
+@@ -87,7 +87,7 @@
+ 	handlers := api.NewHandlers(scorers, 500, ingest.NoveltyThreshold)
+ 	triageClient := triage.NewClient(*ollamaURL, *ollamaModel)
+ 
+-	srv := ingest.NewServer(wal, scorers, secondaryScorers, rulesEvaluator)
++	srv := ingest.NewServer(wal, scorers, secondaryScorers, rulesEvaluator, staticAnalyzer)
+ 	srv.OnEvent = func(ev *store.Event) {
+ 		handlers.Push(ev)
+ 	}

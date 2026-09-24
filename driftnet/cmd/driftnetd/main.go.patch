@@ -1,0 +1,32 @@
+--- cmd/driftnetd/main.go
++++ cmd/driftnetd/main.go
+@@ -21,6 +21,7 @@
+ 	"github.com/yash/driftnet/internal/ingest"
+ 	"github.com/yash/driftnet/internal/novelty"
+ 	"github.com/yash/driftnet/internal/rules"
++	"github.com/yash/driftnet/internal/static"
+ 	"github.com/yash/driftnet/internal/store"
+ 	"github.com/yash/driftnet/internal/triage"
+ )
+@@ -32,6 +33,7 @@
+ 	ollamaModel := flag.String("model", "llama3.1:8b-instruct-q4_K_M", "Ollama model tag for triage")
+ 	windowSize := flag.Int("window", 128, "NCD baseline window size per source")
+ 	webDir := flag.String("web", "./web", "directory to serve the dashboard from")
++	apkPath := flag.String("apk", "", "Optional path to the target APK for static context enrichment")
+ 	flag.Parse()
+ 
+ 	wal, err := store.Open(*dataDir)
+@@ -40,6 +42,14 @@
+ 	}
+ 	defer wal.Close()
+ 
++	var staticAnalyzer *static.Analyzer
++	if *apkPath != "" {
++		staticAnalyzer, err = static.NewAnalyzer(*apkPath)
++		if err != nil {
++			log.Printf("warning: failed to parse static apk: %v", err)
++		}
++	}
++
+ 	scorers := novelty.NewManager(novelty.Config{WindowSize: *windowSize})
+ 	defer scorers.Close()

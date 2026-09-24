@@ -1,0 +1,134 @@
+// Command driftnetd is the laptop-side aggregator: it exposes a
+// WebSocket ingestion endpoint for Frida agents (phone-side), scores
+// every event with compression-based novelty detection, persists to a
+// WAL, and triages high-novelty events through a local Ollama model.
+//
+// Bind it to your Tailscale interface address, not 0.0.0.0, unless you've
+// locked down the tailnet ACLs deliberately:
+//
+//	driftnetd -addr 100.x.y.z:8787 -data ./data -ollama http://127.0.0.1:11434
+package main
+
+import (
+	"context"
+	"flag"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/yash/driftnet/internal/api"
+	"github.com/yash/driftnet/internal/fingerprint"
+	"github.com/yash/driftnet/internal/ingest"
+	"github.com/yash/driftnet/internal/novelty"
+	"github.com/yash/driftnet/internal/rules"
+	"github.com/yash/driftnet/internal/static"
+	"github.com/yash/driftnet/internal/store"
+	"github.com/yash/driftnet/internal/triage"
+)
+
+func main() {
+	addr := flag.String("addr", "127.0.0.1:8787", "listen address (use your Tailscale IP to expose over the tailnet)")
+	dataDir := flag.String("data", "./data", "directory for the WAL")
+	ollamaURL := flag.String("ollama", "http://127.0.0.1:11434", "Ollama base URL for triage")
+	ollamaModel := flag.String("model", "llama3.1:8b-instruct-q4_K_M", "Ollama model tag for triage")
+	windowSize := flag.Int("window", 128, "NCD baseline window size per source")
+	webDir := flag.String("web", "./web", "directory to serve the dashboard from")
+	apkPath := flag.String("apk", "", "Optional path to the target APK for static context enrichment")
+	flag.Parse()
+
+	wal, err := store.Open(*dataDir)
+	if err != nil {
+		log.Fatalf("open wal: %v", err)
+	}
+	defer wal.Close()
+
+	var staticAnalyzer *static.Analyzer
+	if *apkPath != "" {
+		staticAnalyzer, err = static.NewAnalyzer(*apkPath)
+		if err != nil {
+			log.Printf("warning: failed to parse static apk: %v", err)
+		}
+	}
+
+	scorers := novelty.NewManager(novelty.Config{WindowSize: *windowSize})
+	defer scorers.Close()
+
+	// Independent secondary scorer (DEFLATE instead of zstd, see
+	// novelty/secondary.go) -- same WindowSize, same key convention, but
+	// a completely separate baseline. Its whole purpose is to disagree
+	// with the primary scorer sometimes; sharing state would defeat that.
+	secondaryScorers := novelty.NewSecondaryManager(novelty.Config{WindowSize: *windowSize})
+
+	rulesEvaluator := rules.NewEvaluator(rules.Config{WarmupEvents: rules.DefaultWarmupEvents})
+
+	// Warm the novelty baselines AND rules state from history so a
+	// restart doesn't reset every source back to "everything looks
+	// novel" and "every host looks first-seen." All warmup calls below
+	// use the EXACT SAME key/payload construction as live ingest
+	// (ingest.ScoringKey, fingerprint.Enrich, rulesEvaluator.ObserveOnly)
+	// -- this had two real bugs before it was ever exercised with actual
+	// pre-existing data (every smoke test up to this point used a fresh
+	// empty data dir): this loop used to score raw ev.Detail instead of
+	// the enriched fingerprint, and used a bare device:app key instead of
+	// the kind-qualified one live ingest actually uses -- meaning replay
+	// warmup would have silently rebuilt baselines under the wrong keys,
+	// with zero effect, and using different bytes than live scoring even
+	// where the key happened to match.
+	replayCount := 0
+	err = wal.Replay(func(ev *store.Event) error {
+		scoringKey := ingest.ScoringKey(ev.Device, ev.App, ev.Kind)
+		enriched := fingerprint.Enrich(ev.Detail)
+		if err := scorers.Observe(scoringKey, enriched); err == nil {
+			replayCount++
+		}
+		secondaryScorers.Observe(scoringKey, enriched)
+		rulesEvaluator.ObserveOnly(ev.Device+":"+ev.App, ev.Kind, ev.Detail, ev.AppVersion)
+		return nil
+	})
+	if err != nil {
+		log.Printf("wal replay warning: %v", err)
+	}
+	log.Printf("driftnetd: warmed novelty baselines (primary + secondary) + rules state from %d historical events", replayCount)
+
+	handlers := api.NewHandlers(scorers, 500, ingest.NoveltyThreshold)
+	triageClient := triage.NewClient(*ollamaURL, *ollamaModel)
+
+	srv := ingest.NewServer(wal, scorers, secondaryScorers, rulesEvaluator)
+	srv.OnEvent = func(ev *store.Event) {
+		handlers.Push(ev)
+	}
+	srv.OnFlagged = func(ev *store.Event) {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		note, err := triageClient.Explain(ctx, ev.Device, ev.App, ev.Kind, ev.Detail, ev.NCDScore, ev.RuleMatches)
+		if err != nil {
+			log.Printf("triage: explain failed for seq=%d: %v", ev.Seq, err)
+			note = "(triage unavailable: " + err.Error() + ")"
+		}
+		// SetTriage, NOT a direct ev.Triage = note assignment: this event
+		// is already sitting in handlers' recent-events ring, readable
+		// concurrently by any in-flight HTTP request. A direct mutation
+		// here raced against that -- see SetTriage's doc for the full
+		// account of a real bug this fixes.
+		handlers.SetTriage(ev.Seq, note)
+		log.Printf("FLAGGED seq=%d device=%s app=%s kind=%s ncd=%.3f :: %s",
+			ev.Seq, ev.Device, ev.App, ev.Kind, ev.NCDScore, note)
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ws/ingest", srv.HandleWS)
+	mux.HandleFunc("/api/events/recent", handlers.RecentEvents)
+	mux.HandleFunc("/api/events/flagged", handlers.FlaggedEvents)
+	mux.HandleFunc("/api/sources", handlers.Sources)
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	})
+	mux.Handle("/", http.FileServer(http.Dir(*webDir)))
+
+	log.Printf("driftnetd listening on %s", *addr)
+	log.Printf("  dashboard:  http://%s/", *addr)
+	log.Printf("  ws ingest:  ws://%s/ws/ingest", *addr)
+	log.Printf("  api:        http://%s/api/*", *addr)
+	log.Fatal(http.ListenAndServe(*addr, mux))
+}

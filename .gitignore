@@ -16,7 +16,8 @@ dist/
 *.out
 *.o
 *.db
-driftnetd
+/driftnet/driftnetd
+/driftnetd
 
 # Environment
 .env

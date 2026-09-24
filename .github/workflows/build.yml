@@ -17,12 +17,12 @@ jobs:
       - name: Install Clang & LLVM Toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang llvm libbpf-dev linux-headers-generic gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+          sudo apt-get install -y clang llvm libbpf-dev linux-headers-generic gcc-aarch64-linux-gnu libc6-dev-arm64-cross linux-libc-dev-arm64-cross
 
       - name: Compile eBPF Object
         run: |
           cd modules/ebpf_kernel
-          clang -O2 -target bpf -g -D__TARGET_ARCH_arm64 -c bpf_probe.c -o bpf_probe.o
+          clang -O2 -target bpf -g -D__TARGET_ARCH_arm64 -I/usr/aarch64-linux-gnu/include -c bpf_probe.c -o bpf_probe.o
 
       - name: Upload eBPF Artifacts
         uses: actions/upload-artifact@v4
