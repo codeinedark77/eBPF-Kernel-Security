@@ -10,9 +10,9 @@
 
 <br />
 
-**DriftNet** is a Ring-0 cybersecurity daemon designed for Android edge devices. It utilizes eBPF (Extended Berkeley Packet Filter) kernel probes to passively intercept and stream execution, network, and file-system syscalls with near-zero overhead. 
+**DriftNet** is a hybrid cybersecurity daemon designed for Android edge devices. It leverages Ring-0 eBPF (Extended Berkeley Packet Filter) kernel probes to passively intercept execution, network, and file-system syscalls, while a Ring-3 Go relay and AI engine handle triage. 
 
-Unlike traditional Ring-3 EDRs or user-space hooks (Frida/Xposed) which are easily detected and bypassed by modern malware, DriftNet operates entirely in kernel-space, making it invisible to userspace applications.
+Unlike traditional Ring-3 EDRs or user-space hooks (Frida/Xposed) which are easily detected and bypassed by modern malware, DriftNet's telemetry operates entirely in kernel-space, making the probes invisible to userspace applications.
 
 ---
 
@@ -93,15 +93,23 @@ adb push OMNI_Magisk_Release.zip /sdcard/Download/
 *Install via Magisk Manager and reboot.*
 
 **2. Start the Telemetry Relay & AI Engine**
-The Go relay compiles down to a statically linked ARM64 binary and requires a connection to a local Ollama instance (running on a host machine to prevent thermal shutdown on the edge node).
+The Go relay compiles down to a statically linked ARM64 binary. The AI engine utilizes `llama.cpp` compiled via the Android NDK to run a quantized model (~600MB) directly on the mobile Adreno GPU, as orchestrated by the native Lazy AI watchdog.
 ```bash
-# On Laptop
-OLLAMA_HOST=127.0.0.1:11434 ollama serve
-
 # On Phone (via ADB shell)
 cd /data/local/ubuntu
 /bin/su - root -c "./scripts/driftnet_start.sh"
 ```
+
+---
+
+## ⚠️ Limitations & Reality Check
+
+While Project OMNI demonstrates elite systems engineering, it is a prototype and has the following constraints:
+1. **Root Requirement:** Requires Magisk and a custom kernel with `CONFIG_BPF_SYSCALL=y`.
+2. **Fail-Open Telemetry:** BPF ring buffers are lockless. Under extreme load, events will be dropped to prioritize system stability.
+3. **Statistical Heuristics:** An NCD score of `0.5` is a statistical heuristic threshold for anomalies, not a mathematical proof of malware.
+4. **Dashboard Security:** The Next.js UI binds to `0.0.0.0:8787` by default. In a production environment, this must be placed behind an authenticated reverse proxy.
+5. **Evasion Risks:** Advanced rootkits capable of unhooking kprobes or employing advanced syscall-evasion techniques (like direct syscalls) can bypass traditional eBPF monitoring.
 
 ---
 

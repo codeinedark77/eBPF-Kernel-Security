@@ -8,7 +8,7 @@
 ---
 
 ### Abstract
-Project OMNI represents a paradigm shift in mobile Endpoint Detection and Response (EDR). Unlike traditional mobile security products that rely on cloud telemetry, virtualization, or accessibility services, OMNI operates entirely bare-metal on an Android edge node (OnePlus 9R). By fusing eBPF kernel engineering, heterogeneous GPU compute, and a Lazy AI orchestrator, OMNI provides un-bypassable zero-day threat detection with zero battery overhead.
+Project OMNI represents a paradigm shift in mobile Endpoint Detection and Response (EDR). Unlike traditional mobile security products that rely on cloud telemetry, virtualization, or accessibility services, OMNI operates entirely bare-metal on an Android edge node (OnePlus 9R). By fusing eBPF kernel engineering, heterogeneous GPU compute, and a Lazy AI orchestrator, OMNI provides highly resilient zero-day threat detection with minimal battery overhead.
 
 ---
 
@@ -32,7 +32,7 @@ OMNI avoids the extreme performance penalty of virtualization (e.g., QEMU or Ter
 ### 3. DriftNet: Mathematical Anomaly Detection (NCD)
 Instead of relying on signature databases, OMNI uses mathematics to detect zero-day malware behavior.
 - **Normalized Compression Distance (NCD):** We use a Go-based backend (DriftNet) that ingests the eBPF ring buffer stream via WebSockets. The system builds a behavioral baseline of normal application syscalls.
-- When an app executes, its syscall trace is compressed against the baseline. If the resulting NCD score crosses the `0.5` threshold, the behavior is mathematically proven to be a novel deviation (an anomaly).
+- When an app executes, its syscall trace is compressed against the baseline. If the resulting NCD score crosses the `0.5` threshold, the behavior is statistically flagged as a novel deviation (an anomaly).
 
 ---
 
@@ -48,7 +48,7 @@ Running a 600MB Large Language Model (LLM) continuously on a Snapdragon 870 GPU 
 The entire system operates autonomously. Packaged as a standard Magisk module, a late-start script (`service.sh`) orchestrates the entire pipeline upon Android boot.
 - Silently mounts the Ubuntu Edge Node.
 - Attaches the eBPF kernel hooks.
-- Spools up the DriftNet Next.js dashboard (exposed on `0.0.0.0:8787`).
+- Spools up the DriftNet Next.js dashboard (exposed on `0.0.0.0:8787` - *Note: Requires reverse proxy authentication for production deployments*).
 - Deploys the VNC server (`127.0.0.1:5901`).
 
 ---
