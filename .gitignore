@@ -34,3 +34,10 @@ Thumbs.db
 modules/local_ai/cmake-*
 modules/local_ai/models/
 *.gguf
+
+# Ignore massive binaries and databases
+*.tar.gz
+*.gguf
+events.db
+modules/local_ai/llama.cpp/models/*
+omni_update.tar.gz
