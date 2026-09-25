@@ -16,7 +16,14 @@ mount --bind /dev /data/local/ubuntu/dev
 mount --bind /dev/pts /data/local/ubuntu/dev/pts
 
 # DriftNet connects to port 11434 and serves on port 8787
-chroot /data/local/ubuntu /bin/su - root -c "cd /root/driftnet && nohup ./bin/driftnetd -addr 0.0.0.0:8787 -data ./data -ollama http://127.0.0.1:11434 -model tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf -web ./frontend/out > /root/driftnet_nohup.out 2>&1 &"
+# main.go's own comment warns against 0.0.0.0 ("bind to your Tailscale interface,
+# not 0.0.0.0, unless you've locked down the tailnet ACLs deliberately") and its flag
+# default is 127.0.0.1. This boot script was overriding that safe default and binding
+# wide open with zero authentication on every endpoint (CheckOrigin also accepts any
+# origin). Restored to loopback-only; adb reverse/forward still reaches it from a
+# laptop. If you deliberately want tailnet-wide access, replace 127.0.0.1 with your
+# Tailscale interface IP, not 0.0.0.0, per main.go's own guidance.
+chroot /data/local/ubuntu /bin/su - root -c "cd /root/driftnet && nohup ./bin/driftnetd -addr 127.0.0.1:8787 -data ./data -ollama http://127.0.0.1:11434 -model tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf -web ./frontend/out > /root/driftnet_nohup.out 2>&1 &"
 
 # 2. Start the eBPF Kernel Probe -> Go WebSocket Relay Pipeline
 chroot /data/local/ubuntu /bin/su - root -c "cd /root/loader && nohup sh -c './bpf_loader bpf_probe.o | ./bpf_relay' > /root/bpf_nohup.out 2>&1 &"

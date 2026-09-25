@@ -6,13 +6,6 @@
 
 #define MAX_PATH_LEN 256
 
-struct user_pt_regs {
-	__u64 regs[31];
-	__u64 sp;
-	__u64 pc;
-	__u64 pstate;
-};
-
 struct data_t {
     __u32 pid;
     __u32 uid;
@@ -51,7 +44,6 @@ int bpf_prog_connect(struct pt_regs *ctx)
 
     data.pid = bpf_get_current_pid_tgid() >> 32;
     data.uid = bpf_get_current_uid_gid() & 0xFFFFFFFF;
-
     /*
      * Do not write to the traced process's user stack.  bpf_probe_write_user()
      * here corrupted the return path of blacklisted processes and could crash
@@ -90,7 +82,6 @@ int bpf_prog_execve(struct pt_regs *ctx)
 
     data.pid = bpf_get_current_pid_tgid() >> 32;
     data.uid = bpf_get_current_uid_gid() & 0xFFFFFFFF;
-
     /* Observation-only: never overwrite the traced task's user memory. */
     bpf_get_current_comm(&data.comm, sizeof(data.comm));
 

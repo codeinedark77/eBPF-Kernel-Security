@@ -8,7 +8,11 @@ echo "[*] Skipping Local AI on phone to prevent thermal shutdown..."
 sleep 1
 
 echo "[*] Starting DriftNet (Dashboard + eBPF Analytics) on port 8787..."
-adb shell 'su -c "chroot /data/local/ubuntu /bin/su - root -c \"nohup /root/driftnet/bin/driftnetd -addr 0.0.0.0:8787 -data /root/driftnet/data -ollama http://127.0.0.1:11434 -model llama3.1:8b -web /root/driftnet/frontend/out > /root/driftnet/nohup.out 2>&1 &\""'
+# -addr changed from 0.0.0.0:8787 to 127.0.0.1:8787: no endpoint here has auth, and
+# CheckOrigin accepts any origin, so 0.0.0.0 meant anything that could reach the
+# phone's IP could read every finding and open the raw ingest socket. adb already
+# reaches loopback via `adb forward`/`adb reverse`, so this doesn't need a wide bind.
+adb shell 'su -c "chroot /data/local/ubuntu /bin/su - root -c \"nohup /root/driftnet/bin/driftnetd -addr 127.0.0.1:8787 -data /root/driftnet/data -ollama http://127.0.0.1:11434 -model llama3.1:8b -web /root/driftnet/frontend/out > /root/driftnet/nohup.out 2>&1 &\""'
 sleep 5
 
 echo "[*] Establishing Network Bridges..."

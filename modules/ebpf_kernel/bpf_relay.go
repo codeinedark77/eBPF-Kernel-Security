@@ -92,17 +92,16 @@ func main() {
 			kind := "sys_openat"
 			if strings.HasPrefix(fname, "IP:") {
 				kind = "sys_connect"
-				
-				// Demo Fast-Path: Simulate warm AI cache for the demo malware IP
-				if strings.HasPrefix(fname, "IP:185.123.") {
-					blacklistMap, err := ebpf.LoadPinnedMap("/sys/fs/bpf/blacklist_pids", nil)
-					if err == nil {
-						blacklistMap.Put(uint32(pid), uint32(9))
-						blacklistMap.Close()
-					}
-					syscall.Kill(pid, syscall.SIGKILL)
-					log.Printf("Ring-0 Kill Authorized: inserted PID %d into kernel blacklist map and delivered instant SIGKILL (Lazy AI Warm Cache)", pid)
-				}
+				// A hardcoded "if fname starts with 185.123. -> kill immediately, no
+				// scoring, no LLM" fast-path used to live here ("Lazy AI Warm Cache").
+				// It bypassed the entire novelty/triage pipeline for that one demo IP
+				// and logged a message implying the AI made the call when nothing
+				// scored or triaged anything. Removed: every connect event, including
+				// ones aimed at a known-bad IP, must go through driftnetd's real
+				// scoring and come back as an actual BLOCK verdict before anything
+				// gets killed. If you want a fast, deterministic block for known-bad
+				// indicators, implement it as a real, visible rule in
+				// driftnet/internal/rules (see rules.go), not a silent shortcut here.
 			} else if strings.HasPrefix(fname, "EXEC:") {
 				kind = "sys_execve"
 				fname = strings.TrimPrefix(fname, "EXEC:")
