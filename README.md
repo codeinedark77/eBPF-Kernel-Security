@@ -1,7 +1,6 @@
 # 🛡️ DriftNet (Project OMNI)
 
 <div align="center">
-  <img src="https://img.shields.io/badge/Status-Production-success?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Kernel-eBPF-black?style=for-the-badge&logo=linux" />
   <img src="https://img.shields.io/badge/Backend-Go-00ADD8?style=for-the-badge&logo=go" />
   <img src="https://img.shields.io/badge/Frontend-Next.js-black?style=for-the-badge&logo=next.js" />
@@ -19,7 +18,7 @@ Unlike traditional Ring-3 EDRs or user-space hooks (Frida/Xposed) which are easi
 ## 🔬 Core Architecture
 
 DriftNet is split into four primary layers:
-1. **The Kernel Probes (C/eBPF):** Intercepts ARM64 syscalls (`sys_openat`, `sys_connect`, `sys_execve`).
+1. **The Kernel Probes (C/eBPF):** Intercepts ARM64 syscalls (`sys_connect`, `sys_execve`).
 2. **The Telemetry Relay (Go):** A high-throughput WebSocket server that reads the eBPF BPF map ring buffers.
 3. **The Local AI Triage (Ollama Llama 3.1 8B):** Analyzes incoming syscall payloads in real-time, functioning as an intelligent anomaly detection engine to score and block novel zero-day threats.
 4. **The Tactical Dashboard (Next.js):** A real-time UI mapping the telemetry against behavioral baseline signatures.
@@ -117,7 +116,6 @@ While Project OMNI demonstrates elite systems engineering, it is a prototype and
 
 - **Process Spawning (`sys_execve`):** Detects hidden shell executions and payload staging.
 - **Network Exfiltration (`sys_connect`):** Maps outbound socket connections to malicious IPs before DNS resolution.
-- **File System Tampering (`sys_openat`):** Monitors access to sensitive credentials, `AndroidManifest.xml`, and shared preferences.
 
 **Performance:** DriftNet's eBPF probes induce less than `2µs` of latency per syscall, making them entirely invisible to standard Ring-3 timing attacks. *See [BENCHMARKS.md](BENCHMARKS.md) for full performance telemetry against Frida and Xposed.*
 

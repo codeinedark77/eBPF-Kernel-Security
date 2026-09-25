@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-NDK_HOME="/home/codeinedark/Downloads/android-ndk-r26b"
+NDK_HOME="$NDK_HOME"
 CLANG="$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
 
 mkdir -p build
