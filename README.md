@@ -57,6 +57,9 @@ graph TD
     style UI fill:#000,stroke:#fff,stroke-width:2px,color:#fff
 ```
 
+### ⚠️ Known Architectural Vulnerabilities
+- **Fail Open Under Load (Syscall Flooding)**: DriftNet prioritizes system stability over guaranteed delivery. If the BPF Ring Buffer fills up before the Ring-3 Go Relay can process the events (which is extremely likely given the massive latency of the LLM Triage stage), events are silently dropped. An attacker can trivially bypass telemetry logging by flooding the kernel with syscalls to overflow the buffer before executing their payload.
+
 **[Read the Future Roadmap (OMNI_ROADMAP.md)](OMNI_ROADMAP.md)** for our plans to scale this into a federated vLLM swarm.
 
 ---

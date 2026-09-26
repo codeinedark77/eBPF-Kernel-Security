@@ -17,10 +17,10 @@ This document provides a formal security audit and compliance mapping for the **
 | Control ID | MASVS Requirement Category | Compliance Status | Project Module Implementation |
 | :--- | :--- | :--- | :--- |
 | **MASVS-CODE-1** | The app verifies its own integrity against dynamic tampering. | **PASSED** | `modules/appsec/src/anti_debug.cpp` (`check_ptrace`, `check_tracer_pid`) |
-| **MASVS-CODE-2** | The app detects root and unauthorized execution environments. | **PASSED** | `modules/appsec/src/anti_debug.cpp` (`check_root` su binary scan) |
-| **MASVS-CODE-3** | Dynamic binary instrumentation hooks are identified or mitigated. | **PASSED** | `modules/appsec/scripts/bypass_harness.py` (Instrumentation Analysis) |
-| **MASVS-CODE-4** | Sensitive native C/C++ logic is executed in native memory boundaries. | **PASSED** | All native binaries compiled for `aarch64` with static STL linkage. |
-| **MASVS-NETWORK-1** | Transport layer security (TLS) payloads are monitored and audited. | **PASSED** | `modules/net_ipc/src/raw_socket.c` (Raw IP/TCP packet demuxer) |
+| **MASVS-CODE-2** | The app detects root and unauthorized execution environments. | **PENDING EVIDENCE** | `modules/appsec/src/anti_debug.cpp` (`check_root` su binary scan) |
+| **MASVS-CODE-3** | Dynamic binary instrumentation hooks are identified or mitigated. | **PENDING EVIDENCE** | `modules/appsec/scripts/bypass_harness.py` (Instrumentation Analysis) |
+| **MASVS-CODE-4** | Sensitive native C/C++ logic is executed in native memory boundaries. | **PENDING EVIDENCE** | All native binaries compiled for `aarch64` with static STL linkage. |
+| **MASVS-NETWORK-1** | Transport layer security (TLS) payloads are monitored and audited. | **PENDING EVIDENCE** | `modules/net_ipc/src/raw_socket.c` (Raw IP/TCP packet demuxer) |
 | **MASVS-NETWORK-2** | Application layer TLS unpinning & plaintext inspection is analyzed. | **PASSED** | `modules/net_ipc/scripts/boringssl_hook.py` (`libssl.so` Frida hooks) |
 
 ---
@@ -39,7 +39,7 @@ This document provides a formal security audit and compliance mapping for the **
       return 0;
   }
   ```
-* **Audit Finding:** Executing `PTRACE_TRACEME` ensures that if an external debugger (`gdb`, `lldb`, or `frida-server`) has already attached to the process space via `PTRACE_ATTACH`, the kernel will reject the request with `-1`, triggering an immediate integrity failure.
+* **Audit Finding:** Executing `PTRACE_TRACEME` ensures that if an external debugger (`gdb`, `lldb`, or `frida-server`) has *already* attached to the process space, the kernel will reject the request with `-1`. *Known Limitation:* This check only fires at the exact instant it is called; it does not prevent a debugger from attaching milliseconds later, and is trivially bypassed if an attacker hooks the `ptrace()` syscall itself.
 
 ### 2. MASVS-NETWORK-2: TLS Plaintext Inspection Audit
 * **Control Description:** The system must verify cryptographic channel boundaries and audit runtime data prior to encryption.
